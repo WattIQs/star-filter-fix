@@ -22,7 +22,7 @@ export interface PlaceSuggestion {
 
 /** Busca livre: país, estado, cidade, bairro, rua ou ponto de referência. */
 export const searchPlacesServer = createServerFn({ method: "POST" })
-  .inputValidator((data: { q: string }) => data)
+  .validator((data: { q: string }) => data)
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
     const q = data.q.trim();
     if (q.length < 3) return [];
@@ -30,13 +30,12 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
     const response = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=${encodeURIComponent(q)}`,
       { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
-      20000
+      12000,
     );
     if (!response.ok) {
-      throw new Error(
-        `Busca de lugares indisponível agora (código ${response.status}). Tente de novo em alguns segundos.`
-      );
+      throw new Error(`Busca de lugares indisponível agora (código ${response.status}). Tente novamente.`);
     }
+
     const results = (await response.json()) as {
       display_name: string;
       lat: string;
@@ -66,11 +65,13 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
   });
 
 export const searchOverpassServer = createServerFn({ method: "POST" })
-  .inputValidator((data: { area: BoundingBox; categories: CategoryKey[] }) => data)
+  .validator((data: { area: BoundingBox; categories: CategoryKey[] }) => data)
   .handler(async ({ data }): Promise<{ elements: OverpassElement[] }> => {
     const query = buildOverpassQuery(data.area, data.categories);
-
     const errors: string[] = [];
+
+    // Tenta os mirrors em sequência, mas falha rápido para que uma API congestionada
+    // não deixe a interface presa por quase um minuto.
     for (const mirror of OVERPASS_MIRRORS) {
       try {
         const response = await fetchWithTimeout(
@@ -83,20 +84,20 @@ export const searchOverpassServer = createServerFn({ method: "POST" })
             },
             body: `data=${encodeURIComponent(query)}`,
           },
-          55000
+          18000,
         );
         if (!response.ok) {
-          errors.push(`${mirror}: ${response.status}`);
+          errors.push(`${new URL(mirror).hostname}: ${response.status}`);
           continue;
         }
         const json = (await response.json()) as { elements?: OverpassElement[] };
         return { elements: json.elements ?? [] };
       } catch (error) {
-        errors.push(`${mirror}: ${(error as Error).message}`);
+        errors.push(`${new URL(mirror).hostname}: ${(error as Error).message}`);
       }
     }
 
     throw new Error(
-      `Os servidores do OpenStreetMap estão sobrecarregados agora. Tente novamente em alguns segundos. (${errors.join(" | ")})`
+      "Não foi possível concluir a varredura agora. O OpenStreetMap está demorando para responder; tente novamente em alguns segundos.",
     );
   });
