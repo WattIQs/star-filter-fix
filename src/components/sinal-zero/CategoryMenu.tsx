@@ -1,4 +1,4 @@
-import { Check, LayoutGrid, ChevronDown } from "lucide-react";
+import { Check, LayoutGrid, ChevronDown, Radar } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -8,11 +8,13 @@ import { CATEGORY_LABELS, type CategoryKey } from "@/lib/types";
 interface CategoryMenuProps {
   value: CategoryKey[];
   onChange: (value: CategoryKey[]) => void;
+  onScan: () => void;
+  scanning: boolean;
 }
 
 const ALL_KEYS = Object.keys(CATEGORY_LABELS) as CategoryKey[];
 
-export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
+export function CategoryMenu({ value, onChange, onScan, scanning }: CategoryMenuProps) {
   const toggle = (key: CategoryKey) => {
     onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
   };
@@ -44,9 +46,7 @@ export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
         <div className="mb-3 flex items-center justify-between border-b border-border pb-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Categorias</h3>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Escolha o que será procurado na próxima varredura
-            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Escolha o que será procurado</p>
           </div>
           <button
             type="button"
@@ -56,7 +56,7 @@ export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
             {value.length === ALL_KEYS.length ? "Limpar" : "Todas"}
           </button>
         </div>
-        <div className="max-h-[min(420px,60vh)] space-y-0.5 overflow-y-auto pr-1">
+        <div className="max-h-[min(380px,55vh)] space-y-0.5 overflow-y-auto pr-1">
           {ALL_KEYS.map((key) => {
             const active = value.includes(key);
             return (
@@ -66,9 +66,7 @@ export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
                 onClick={() => toggle(key)}
                 className={cn(
                   "flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs transition-colors",
-                  active
-                    ? "bg-primary/10 font-medium text-primary"
-                    : "text-foreground hover:bg-muted",
+                  active ? "bg-primary/10 font-medium text-primary" : "text-foreground hover:bg-muted",
                 )}
               >
                 <span>{CATEGORY_LABELS[key]}</span>
@@ -77,9 +75,16 @@ export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
             );
           })}
         </div>
-        <div className="mt-3 border-t border-border pt-3 text-[10px] text-muted-foreground">
-          A seleção não dispara uma nova busca a cada clique. Escolha as categorias e faça a próxima varredura pela busca de local.
-        </div>
+        <Button
+          type="button"
+          size="sm"
+          disabled={scanning || value.length === 0}
+          onClick={onScan}
+          className="mt-3 w-full gap-2"
+        >
+          <Radar className={cn("h-3.5 w-3.5", scanning && "animate-spin")} />
+          {scanning ? "Varrendo..." : "Varrer área agora"}
+        </Button>
       </PopoverContent>
     </Popover>
   );
