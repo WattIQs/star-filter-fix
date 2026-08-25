@@ -17,8 +17,8 @@ import {
 import { SORT_LABELS, type SortKey } from "@/lib/types";
 
 interface FiltersMenuProps {
-  minRating: string;
-  onMinRatingChange: (value: string) => void;
+  ratingFilter: string;
+  onRatingFilterChange: (value: string) => void;
   priceFilter: string;
   onPriceFilterChange: (value: string) => void;
   presenceFilter: string;
@@ -28,8 +28,8 @@ interface FiltersMenuProps {
 }
 
 export function FiltersMenu({
-  minRating,
-  onMinRatingChange,
+  ratingFilter,
+  onRatingFilterChange,
   priceFilter,
   onPriceFilterChange,
   presenceFilter,
@@ -38,7 +38,7 @@ export function FiltersMenu({
   onSortKeyChange,
 }: FiltersMenuProps) {
   const activeCount =
-    (minRating !== "any" ? 1 : 0) +
+    (ratingFilter !== "any" ? 1 : 0) +
     (priceFilter !== "any" ? 1 : 0) +
     (presenceFilter !== "any" ? 1 : 0) +
     (sortKey !== "relevance" ? 1 : 0);
@@ -62,16 +62,18 @@ export function FiltersMenu({
           <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
             Classificação
           </Label>
-          <Select value={minRating} onValueChange={onMinRatingChange}>
+          <Select value={ratingFilter} onValueChange={onRatingFilterChange}>
             <SelectTrigger className="h-9 bg-background text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="any">Qualquer classificação</SelectItem>
-              <SelectItem value="2">2 estrelas ou mais</SelectItem>
-              <SelectItem value="3">3 estrelas ou mais</SelectItem>
-              <SelectItem value="4">4 estrelas ou mais</SelectItem>
-              <SelectItem value="4.5">4,5 estrelas ou mais</SelectItem>
+              <SelectItem value="1">1 estrela</SelectItem>
+              <SelectItem value="2">2 estrelas</SelectItem>
+              <SelectItem value="3">3 estrelas</SelectItem>
+              <SelectItem value="4">4 estrelas</SelectItem>
+              <SelectItem value="5">5 estrelas</SelectItem>
+              <SelectItem value="unrated">Sem nota pública</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -102,9 +104,11 @@ export function FiltersMenu({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="any">Todos os estabelecimentos</SelectItem>
-              <SelectItem value="weak">Apenas presença fraca ou nula</SelectItem>
-              <SelectItem value="zero">Apenas sinal zero (sem nada)</SelectItem>
+              <SelectItem value="any">Todos os níveis</SelectItem>
+              <SelectItem value="opportunity">Pouca presença (zero ou fraca)</SelectItem>
+              <SelectItem value="zero">Sinal zero</SelectItem>
+              <SelectItem value="weak">Presença fraca</SelectItem>
+              <SelectItem value="full">Presença forte</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -127,18 +131,19 @@ export function FiltersMenu({
           </Select>
         </div>
 
-        <button
+        <Button
+          variant="outline"
           type="button"
           onClick={() => {
-            onMinRatingChange("any");
+            onRatingFilterChange("any");
             onPriceFilterChange("any");
             onPresenceFilterChange("any");
             onSortKeyChange("relevance");
           }}
-          className="w-full rounded-md border border-border py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted"
+          className="w-full py-1.5 text-[11px] text-muted-foreground"
         >
           Limpar filtros
-        </button>
+        </Button>
       </PopoverContent>
     </Popover>
   );
