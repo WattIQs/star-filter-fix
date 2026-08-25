@@ -127,8 +127,6 @@ function Index() {
     };
 
     try {
-      // Sempre carrega a lista completa. O filtro Sinal Zero é aplicado depois,
-      // para que ligar/desligar o filtro não destrua os resultados originais.
       const data = await searchOverpassServer({
         data: { area, categories: cats, signalZeroOnly: false },
       });
@@ -187,12 +185,16 @@ function Index() {
     if (!enabled) {
       setVerificationMode("off");
       setResults(allResults);
+      setScanning(false);
       return;
     }
 
     if (allResults.length > 0) {
       const scanId = scanIdRef.current;
-      void runSignalZeroVerification(allResults, scanId);
+      setScanning(true);
+      void runSignalZeroVerification(allResults, scanId).finally(() => {
+        if (scanId === scanIdRef.current) setScanning(false);
+      });
     }
   };
 
@@ -266,7 +268,7 @@ function Index() {
               <div className="space-y-2 px-4 py-3">
                 <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {signalZeroOnly ? (verificationMode === "external" ? "Verificando presença digital..." : "Consultando sinais zero...") : "Consultando estabelecimentos..."}
+                  {signalZeroOnly ? "Verificando leads..." : "Consultando estabelecimentos..."}
                 </div>
                 {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-md border border-border/50 bg-muted/40" />)}
               </div>
