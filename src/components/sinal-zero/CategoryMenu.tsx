@@ -1,11 +1,7 @@
 import { Check, LayoutGrid, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CATEGORY_LABELS, type CategoryKey } from "@/lib/types";
 
@@ -24,31 +20,43 @@ export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="shrink-0 gap-1.5 text-xs">
+        <Button
+          variant="outline"
+          size="sm"
+          className="relative z-[1201] shrink-0 gap-1.5 border-border bg-background text-xs shadow-sm hover:bg-accent"
+        >
           <LayoutGrid className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Categorias</span>
+          <span>Categorias</span>
           {value.length > 0 && (
-            <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+            <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
               {value.length}
             </span>
           )}
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-2">
-        <div className="mb-2 flex items-center justify-between px-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Categorias
-          </span>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        className="z-[5000] w-[300px] border-border bg-card p-3 shadow-2xl"
+      >
+        <div className="mb-3 flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Categorias</h3>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Escolha o que será procurado na próxima varredura
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => onChange(value.length === ALL_KEYS.length ? [] : ALL_KEYS)}
-            className="text-[11px] text-primary hover:underline"
+            className="text-[11px] font-medium text-primary hover:underline"
           >
             {value.length === ALL_KEYS.length ? "Limpar" : "Todas"}
           </button>
         </div>
-        <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
+        <div className="max-h-[min(420px,60vh)] space-y-0.5 overflow-y-auto pr-1">
           {ALL_KEYS.map((key) => {
             const active = value.includes(key);
             return (
@@ -57,17 +65,20 @@ export function CategoryMenu({ value, onChange }: CategoryMenuProps) {
                 type="button"
                 onClick={() => toggle(key)}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                  "flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs transition-colors",
                   active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted"
+                    ? "bg-primary/10 font-medium text-primary"
+                    : "text-foreground hover:bg-muted",
                 )}
               >
-                {CATEGORY_LABELS[key]}
-                {active && <Check className="h-3.5 w-3.5" />}
+                <span>{CATEGORY_LABELS[key]}</span>
+                {active && <Check className="h-3.5 w-3.5 shrink-0" />}
               </button>
             );
           })}
+        </div>
+        <div className="mt-3 border-t border-border pt-3 text-[10px] text-muted-foreground">
+          A seleção não dispara uma nova busca a cada clique. Escolha as categorias e faça a próxima varredura pela busca de local.
         </div>
       </PopoverContent>
     </Popover>
