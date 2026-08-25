@@ -17,24 +17,145 @@ function getTag(tags: Record<string, string>, keys: string[]): string | null {
   return null;
 }
 
-export function classifySignals(tags: Record<string, string>) {
-  const website = getTag(tags, ["website", "contact:website"]) !== null;
-  const instagram = getTag(tags, ["contact:instagram", "instagram"]) !== null;
-  const facebook = getTag(tags, ["contact:facebook", "facebook"]) !== null;
-  const email = getTag(tags, ["email", "contact:email"]) !== null;
-  const phone =
-    getTag(tags, [
-      "phone",
-      "contact:phone",
-      "contact:mobile",
-      "mobile",
-      "contact:whatsapp",
-    ]) !== null;
+const DIGITAL_TAG_KEYS = [
+  "website",
+  "contact:website",
+  "url",
+  "contact:url",
+  "instagram",
+  "contact:instagram",
+  "facebook",
+  "contact:facebook",
+  "twitter",
+  "contact:twitter",
+  "x",
+  "contact:x",
+  "tiktok",
+  "contact:tiktok",
+  "youtube",
+  "contact:youtube",
+  "linkedin",
+  "contact:linkedin",
+  "email",
+  "contact:email",
+  "wikidata",
+  "wikipedia",
+  "brand:wikidata",
+  "brand:wikipedia",
+  "operator:wikidata",
+  "operator:wikipedia",
+];
 
-  const signalCount = [website, instagram, facebook, email].filter(Boolean).length;
+const WELL_KNOWN_BRANDS = [
+  "mcdonalds",
+  "mcdonald's",
+  "burger king",
+  "subway",
+  "starbucks",
+  "kfc",
+  "pizza hut",
+  "domino's",
+  "dominos",
+  "habib's",
+  "habibs",
+  "giraffas",
+  "bob's",
+  "bobs",
+  "spoleto",
+  "madero",
+  "outback",
+  "coco bambu",
+  "china in box",
+  "ragazzo",
+  "carrefour",
+  "assai",
+  "assaí",
+  "assai atacadista",
+  "atacadao",
+  "atacadão",
+  "pao de acucar",
+  "pão de açúcar",
+  "extra",
+  "dia",
+  "oxxo",
+  "drogasil",
+  "droga raia",
+  "raia drogasil",
+  "drogaria sao paulo",
+  "drogaria são paulo",
+  "drogarias pacheco",
+  "pague menos",
+  "panvel",
+  "ultrafarma",
+  "smart fit",
+  "bluefit",
+  "selfit",
+  "bio ritmo",
+  "renner",
+  "riachuelo",
+  "cea",
+  "c&a",
+  "marisa",
+  "centauro",
+  "netshoes",
+  "cobasi",
+  "petz",
+  "leroy merlin",
+  "telhanorte",
+];
+
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9&' ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasTag(tags: Record<string, string>, keys: string[]): boolean {
+  return getTag(tags, keys) !== null;
+}
+
+function hasWellKnownBrand(tags: Record<string, string>): boolean {
+  if (hasTag(tags, ["brand:wikidata", "brand:wikipedia", "operator:wikidata", "operator:wikipedia"])) {
+    return true;
+  }
+
+  const haystack = normalizeText(
+    [tags["name"], tags["brand"], tags["operator"], tags["official_name"]]
+      .filter(Boolean)
+      .join(" ")
+  );
+  if (!haystack) return false;
+
+  return WELL_KNOWN_BRANDS.some((brand) => {
+    const normalizedBrand = normalizeText(brand);
+    return haystack === normalizedBrand || haystack.includes(normalizedBrand);
+  });
+}
+
+export function classifySignals(tags: Record<string, string>) {
+  const website = hasTag(tags, ["website", "contact:website", "url", "contact:url"]);
+  const instagram = hasTag(tags, ["contact:instagram", "instagram"]);
+  const facebook = hasTag(tags, ["contact:facebook", "facebook"]);
+  const email = hasTag(tags, ["email", "contact:email"]);
+  const phone = hasTag(tags, [
+    "phone",
+    "contact:phone",
+    "contact:mobile",
+    "mobile",
+    "contact:whatsapp",
+  ]);
+  const otherDigital = hasTag(tags, DIGITAL_TAG_KEYS);
+  const wellKnownBrand = hasWellKnownBrand(tags);
+
+  const signalCount = [website, instagram, facebook, email, otherDigital].filter(Boolean).length;
 
   let level: SignalLevel;
-  if (signalCount === 0) level = "zero";
+  if (wellKnownBrand || signalCount >= 2) level = "full";
+  else if (signalCount === 0) level = "zero";
   else if (signalCount === 1) level = "weak";
   else level = "full";
 
@@ -202,6 +323,27 @@ function extractPriceLevel(tags: Record<string, string>): 1 | 2 | 3 | null {
   return null;
 }
 
+function inferPriceLevel(tags: Record<string, string>, categoryKey: CategoryKey | null): 1 | 2 | 3 | null {
+  const cuisine = normalizeText(tags["cuisine"]);
+  const name = normalizeText(tags["name"]);
+
+  if (/(steak|steakhouse|japanese|sushi|seafood|wine|bistro|gourmet|emporio|empório)/.test(cuisine)) {
+    return 3;
+  }
+  if (/(outback|madero|coco bambu)/.test(name)) return 3;
+
+  if (categoryKey === "fast_food" || categoryKey === "bakery" || categoryKey === "cafe") {
+    return 1;
+  }
+  if (categoryKey === "convenience") return 1;
+  if (categoryKey === "restaurant" || categoryKey === "bar" || categoryKey === "pub") {
+    return 2;
+  }
+  if (categoryKey) return 2;
+
+  return null;
+}
+
 function buildAddress(tags: Record<string, string>): string {
   const parts: string[] = [];
   const street = tags["addr:street"];
@@ -290,7 +432,7 @@ export function processOverpassResults(
       signalCount,
       level,
       rating: extractRating(tags),
-      priceLevel: extractPriceLevel(tags),
+      priceLevel: extractPriceLevel(tags) ?? inferPriceLevel(tags, category.key),
       googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         `${name} ${address || `${lat},${lon}`}`
       )}`,
