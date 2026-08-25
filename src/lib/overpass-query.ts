@@ -2,13 +2,11 @@ import type { BoundingBox, CategoryKey } from "./types";
 import { CATEGORIES } from "./types";
 
 /**
- * Monta uma query Overpass focada em candidatos Sinal Zero.
- *
- * A própria consulta já elimina objetos que possuem sinais comerciais de
- * presença digital no OSM. Isso reduz payload, tempo de processamento e,
- * principalmente, falsos positivos antes mesmo da classificação no cliente.
+ * Monta a query Overpass. Por padrão, busca todos os estabelecimentos das
+ * categorias escolhidas. O filtro Sinal Zero é aplicado depois, quando o
+ * usuário o ativa, para não limitar a descoberta de leads.
  */
-export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[]): string {
+export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[], signalZeroOnly = false): string {
   const byKey = new Map<string, Set<string>>();
   for (const key of categories) {
     for (const filter of CATEGORIES[key]?.filters ?? []) {
@@ -23,34 +21,19 @@ export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[])
   const bbox = `${area.south},${area.west},${area.north},${area.east}`;
   const blocks: string[] = [];
 
-  // Esses campos representam presença digital comercial. Telefone/WhatsApp
-  // NÃO é excluído: ele é justamente o canal de prospecção que queremos.
   const noCommercialDigital = [
-    "website",
-    "contact:website",
-    "url",
-    "contact:url",
-    "instagram",
-    "contact:instagram",
-    "facebook",
-    "contact:facebook",
-    "twitter",
-    "contact:twitter",
-    "x",
-    "contact:x",
-    "tiktok",
-    "contact:tiktok",
-    "youtube",
-    "contact:youtube",
-    "linkedin",
-    "contact:linkedin",
-    "email",
-    "contact:email",
+    "website", "contact:website", "url", "contact:url",
+    "instagram", "contact:instagram", "facebook", "contact:facebook",
+    "twitter", "contact:twitter", "x", "contact:x",
+    "tiktok", "contact:tiktok", "youtube", "contact:youtube",
+    "linkedin", "contact:linkedin", "email", "contact:email",
   ];
 
-  const zeroFilters = noCommercialDigital
-    .map((key) => `["${key}"!~".+"]`)
-    .join("");
+  // Só restringe a query no modo Sinal Zero. No modo normal precisamos
+  // preservar também os leads que já possuem presença digital.
+  const zeroFilters = signalZeroOnly
+    ? noCommercialDigital.map((key) => `["${key}"!~".+"]`).join("")
+    : "";
 
   for (const [key, values] of byKey) {
     const escaped = [...values]
