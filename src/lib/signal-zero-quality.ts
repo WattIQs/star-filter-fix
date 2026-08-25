@@ -38,9 +38,7 @@ function hasValue(tags: Record<string, string>, keys: string[]): boolean {
 
 function looksLikeKnownChain(tags: Record<string, string>): boolean {
   const identity = normalize(
-    [tags.name, tags.brand, tags.operator, tags.official_name]
-      .filter(Boolean)
-      .join(" "),
+    [tags.name, tags.brand, tags.operator, tags.official_name].filter(Boolean).join(" "),
   );
   if (!identity) return false;
   return CHAIN_PATTERNS.some((pattern) => identity.includes(pattern));
@@ -51,9 +49,8 @@ function hasClearlyDigitalTag(tags: Record<string, string>): boolean {
 }
 
 /**
- * Sinal Zero é um estado de oportunidade, não um reflexo cego do campo `level`.
- * OSM pode ter wikidata/wikipedia/brand/operator sem possuir presença digital
- * comercial do negócio. Por isso esses metadados não eliminam o candidato.
+ * Sinal Zero é determinado somente por evidência comercial real.
+ * Wikidata/Wikipedia/brand/operator não são considerados presença digital.
  */
 export function isStrictSignalZero(place: Establishment): boolean {
   const tags = place.tags ?? {};
@@ -61,18 +58,9 @@ export function isStrictSignalZero(place: Establishment): boolean {
   if (hasClearlyDigitalTag(tags)) return false;
   if (looksLikeKnownChain(tags)) return false;
 
-  // Se o classificador original marcou zero, aceitamos imediatamente.
-  if (place.level === "zero") return true;
-
-  // Compatibilidade com classificações antigas: `weak/full` podem ter sido
-  // causados apenas por Wikidata/Wikipedia/brand metadata. Reavaliamos usando
-  // somente sinais comerciais explícitos, evitando falso negativo.
-  const hasOnlyMetadata = [
-    "wikidata", "wikipedia", "brand:wikidata", "brand:wikipedia",
-    "operator:wikidata", "operator:wikipedia", "brand", "operator",
-  ].some((key) => Boolean(tags[key]?.trim()));
-
-  return hasOnlyMetadata && !hasClearlyDigitalTag(tags);
+  // Não usamos mais place.level como gate, porque versões anteriores do
+  // classificador podiam elevar o nível por metadados não comerciais.
+  return true;
 }
 
 /** Score local antes da verificação externa. Quanto maior, mais promissor. */
@@ -84,6 +72,5 @@ export function getSignalZeroScore(place: Establishment): number {
   if (place.contact.whatsappValid) score += 0;
   else if (place.contact.phoneDigits) score -= 5;
   else score -= 50;
-  if (place.level === "zero") score += 5;
   return Math.max(0, Math.min(100, score));
 }
