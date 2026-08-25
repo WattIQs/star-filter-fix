@@ -46,20 +46,44 @@ function looksLikeKnownChain(tags: Record<string, string>): boolean {
   return CHAIN_PATTERNS.some((pattern) => identity.includes(pattern));
 }
 
+function hasClearlyDigitalTag(tags: Record<string, string>): boolean {
+  return hasValue(tags, DIRECT_DIGITAL_KEYS);
+}
+
 /**
- * Local Sinal Zero gate.
- *
- * Important: OSM metadata such as brand/operator/Wikidata is not treated as
- * commercial digital presence by itself, because many legitimate local
- * businesses have those fields populated. Only explicit commercial channels
- * or a clearly recognized chain are rejected here.
+ * Sinal Zero é um estado de oportunidade, não um reflexo cego do campo `level`.
+ * OSM pode ter wikidata/wikipedia/brand/operator sem possuir presença digital
+ * comercial do negócio. Por isso esses metadados não eliminam o candidato.
  */
 export function isStrictSignalZero(place: Establishment): boolean {
   const tags = place.tags ?? {};
 
-  if (hasValue(tags, DIRECT_DIGITAL_KEYS)) return false;
+  if (hasClearlyDigitalTag(tags)) return false;
   if (looksLikeKnownChain(tags)) return false;
-  if (place.level !== "zero") return false;
 
-  return true;
+  // Se o classificador original marcou zero, aceitamos imediatamente.
+  if (place.level === "zero") return true;
+
+  // Compatibilidade com classificações antigas: `weak/full` podem ter sido
+  // causados apenas por Wikidata/Wikipedia/brand metadata. Reavaliamos usando
+  // somente sinais comerciais explícitos, evitando falso negativo.
+  const hasOnlyMetadata = [
+    "wikidata", "wikipedia", "brand:wikidata", "brand:wikipedia",
+    "operator:wikidata", "operator:wikipedia", "brand", "operator",
+  ].some((key) => Boolean(tags[key]?.trim()));
+
+  return hasOnlyMetadata && !hasClearlyDigitalTag(tags);
+}
+
+/** Score local antes da verificação externa. Quanto maior, mais promissor. */
+export function getSignalZeroScore(place: Establishment): number {
+  const tags = place.tags ?? {};
+  let score = 100;
+  if (hasClearlyDigitalTag(tags)) score -= 100;
+  if (looksLikeKnownChain(tags)) score -= 80;
+  if (place.contact.whatsappValid) score += 0;
+  else if (place.contact.phoneDigits) score -= 5;
+  else score -= 50;
+  if (place.level === "zero") score += 5;
+  return Math.max(0, Math.min(100, score));
 }
