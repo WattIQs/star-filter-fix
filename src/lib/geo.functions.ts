@@ -18,9 +18,9 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
   });
 
 export const searchOverpassServer = createServerFn({ method: "POST" })
-  .validator((data: { area: BoundingBox; categories: CategoryKey[] }) => data)
+  .validator((data: { area: BoundingBox; categories: CategoryKey[]; signalZeroOnly?: boolean }) => data)
   .handler(async ({ data }): Promise<{ elements: OverpassElement[] }> => {
-    const query = buildOverpassQuery(data.area, data.categories); const errors: string[] = [];
+    const query = buildOverpassQuery(data.area, data.categories, data.signalZeroOnly === true); const errors: string[] = [];
     for (const mirror of OVERPASS_MIRRORS) {
       try {
         const response = await fetchWithTimeout(mirror, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA }, body: `data=${encodeURIComponent(query)}` }, 18000);
