@@ -9,11 +9,11 @@ interface MapCanvasProps {
   center: { lat: number; lon: number } | null;
 }
 
-const LEVEL_COLOR: Record<string, string> = {
-  zero: "#f97316",
-  weak: "#eab308",
-  full: "#22d3ee",
-};
+function readThemeColor(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
 
 /**
  * Mapa livre (OpenStreetMap + Leaflet), sem chave de API.
@@ -68,14 +68,20 @@ export default function MapCanvas({ places, selectedId, onSelect, center }: MapC
 
     const renderer = L.canvas({ padding: 0.5 });
     const bounds: [number, number][] = [];
+    const markerColors = {
+      zero: readThemeColor("--signal-zero", "orange"),
+      weak: readThemeColor("--signal-weak", "gold"),
+      full: readThemeColor("--cyan", "cyan"),
+      stroke: readThemeColor("--background", "black"),
+    };
 
     for (const place of places) {
       const marker = L.circleMarker([place.lat, place.lon], {
         renderer,
         radius: 7,
         weight: 2,
-        color: "#0b1220",
-        fillColor: LEVEL_COLOR[place.level] ?? "#f97316",
+        color: markerColors.stroke,
+        fillColor: markerColors[place.level] ?? markerColors.zero,
         fillOpacity: 0.95,
       });
       marker.on("click", () => onSelectRef.current(place.id));
@@ -103,7 +109,9 @@ export default function MapCanvas({ places, selectedId, onSelect, center }: MapC
       marker.setStyle({
         radius: active ? 11 : 7,
         weight: active ? 3 : 2,
-        color: active ? "#ffffff" : "#0b1220",
+        color: active
+          ? readThemeColor("--foreground", "white")
+          : readThemeColor("--background", "black"),
       });
       if (active) {
         marker.bringToFront();

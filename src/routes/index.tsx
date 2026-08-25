@@ -48,6 +48,10 @@ const DEFAULT_CATEGORIES: CategoryKey[] = [];
 /** Limita a área varrida para o Overpass não estourar em estados/países inteiros. */
 const MAX_SPAN = 0.18;
 
+function ratingBucket(rating: number): number {
+  return Math.min(5, Math.max(1, Math.round(rating)));
+}
+
 function MapSkeleton() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-muted/30">
@@ -58,7 +62,7 @@ function MapSkeleton() {
 
 function Index() {
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
-  const [minRating, setMinRating] = useState<string>("any");
+  const [ratingFilter, setRatingFilter] = useState<string>("any");
   const [priceFilter, setPriceFilter] = useState<string>("any");
   const [presenceFilter, setPresenceFilter] = useState<string>("any");
   const [sortKey, setSortKey] = useState<SortKey>("relevance");
@@ -133,19 +137,29 @@ function Index() {
       (r) => r.contact.whatsappValid || Boolean(r.contact.instagramUrl)
     );
 
-    if (minRating !== "any") {
-      const min = Number.parseFloat(minRating);
-      list = list.filter((r) => r.rating !== null && r.rating >= min);
+    if (ratingFilter === "unrated") {
+      list = list.filter((r) => r.rating === null);
+    } else if (ratingFilter !== "any") {
+      const exactStars = Number.parseInt(ratingFilter, 10);
+      list = list.filter(
+        (r) => r.rating !== null && ratingBucket(r.rating) === exactStars
+      );
     }
     if (priceFilter !== "any") {
       const level = Number.parseInt(priceFilter, 10);
       list = list.filter((r) => r.priceLevel === level);
     }
-    if (presenceFilter === "weak") {
+    if (presenceFilter === "opportunity") {
       list = list.filter((r) => r.level !== "full");
     }
     if (presenceFilter === "zero") {
       list = list.filter((r) => r.level === "zero");
+    }
+    if (presenceFilter === "weak") {
+      list = list.filter((r) => r.level === "weak");
+    }
+    if (presenceFilter === "full") {
+      list = list.filter((r) => r.level === "full");
     }
 
     const sorted = [...list];
@@ -167,7 +181,7 @@ function Index() {
       }
     });
     return sorted;
-  }, [results, minRating, priceFilter, presenceFilter, sortKey]);
+  }, [results, ratingFilter, priceFilter, presenceFilter, sortKey]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
@@ -189,8 +203,8 @@ function Index() {
         <CategoryMenu value={categories} onChange={handleCategoriesChange} />
 
         <FiltersMenu
-          minRating={minRating}
-          onMinRatingChange={setMinRating}
+          ratingFilter={ratingFilter}
+          onRatingFilterChange={setRatingFilter}
           priceFilter={priceFilter}
           onPriceFilterChange={setPriceFilter}
           presenceFilter={presenceFilter}

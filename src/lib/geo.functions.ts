@@ -52,14 +52,15 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
         shortLabel: parts.slice(0, 3).join(", "),
         lat: Number.parseFloat(r.lat),
         lon: Number.parseFloat(r.lon),
-        boundingBox: bb
-          ? {
-              south: Number.parseFloat(bb[0]!),
-              north: Number.parseFloat(bb[1]!),
-              west: Number.parseFloat(bb[2]!),
-              east: Number.parseFloat(bb[3]!),
-            }
-          : null,
+        boundingBox:
+          bb && bb.length >= 4
+            ? {
+                south: Number.parseFloat(bb[0] ?? "0"),
+                north: Number.parseFloat(bb[1] ?? "0"),
+                west: Number.parseFloat(bb[2] ?? "0"),
+                east: Number.parseFloat(bb[3] ?? "0"),
+              }
+            : null,
       };
     });
   });
