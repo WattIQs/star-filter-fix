@@ -4,6 +4,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Radar } from "lucide-react";
 import { searchOverpassServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
+import { isStrictSignalZero } from "@/lib/signal-zero-quality";
 import { getSavedLeads, saveLead, removeLead, isLeadSaved } from "@/lib/store";
 import type { CategoryKey, Establishment, SavedLead, SortKey } from "@/lib/types";
 import { CategoryMenu } from "@/components/sinal-zero/CategoryMenu";
@@ -54,7 +55,8 @@ function Index() {
     try {
       const data = await searchOverpassServer({ data: { area, categories: cats } });
       if (scanId !== scanIdRef.current) return;
-      const processed = processOverpassResults(data.elements, cats); setResults(processed);
+      const processed = processOverpassResults(data.elements, cats);
+      setResults(processed);
       if (processed.length === 0) setError("Nenhum estabelecimento encontrado. Tente outra categoria ou local.");
     } catch (err) { if (scanId !== scanIdRef.current) return; setError(err instanceof Error ? err.message : "Erro ao escanear a área."); }
     finally { if (scanId === scanIdRef.current) setScanning(false); }
@@ -66,10 +68,10 @@ function Index() {
   const handleToggleSave = (lead: Establishment) => { if (isLeadSaved(lead.id)) removeLead(lead.id); else saveLead(lead); setSavedLeads(getSavedLeads()); };
 
   const visibleResults = useMemo(() => {
-    // SINAL ZERO É O PRODUTO: nunca misture weak/full na lista principal.
-    // Telefone/WhatsApp é mantido como canal de contato, mas site/social/email
-    // são sinais públicos e já tiram o estabelecimento de zero na classificação.
-    let list = results.filter((r) => r.level === "zero");
+    // O produto mostra somente leads que passam pelo portão estrito Sinal Zero.
+    let list = results.filter(isStrictSignalZero);
+    // Um canal de contato é necessário para tornar o lead acionável, sem contar
+    // telefone/WhatsApp como presença digital.
     list = list.filter((r) => Boolean(r.contact.whatsappValid || r.contact.phoneDigits));
     list = list.filter((r) => ratingMatchesFilter(r.rating, ratingFilter));
     if (priceFilter !== "any") list = list.filter((r) => r.priceLevel === Number.parseInt(priceFilter, 10));
@@ -99,11 +101,11 @@ function Index() {
     </header>
     <div className="relative z-0 flex min-h-0 flex-1 flex-col lg:flex-row lg:gap-3 lg:p-3">
       <aside className="relative z-20 flex h-[42%] min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-border bg-card/60 lg:h-auto lg:w-[460px] lg:rounded-xl lg:border">
-        <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><h2 className="text-sm font-semibold">Sinais Zero</h2><span className="text-[11px] text-muted-foreground">{visibleResults.length} encontrados</span></div>
+        <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div><h2 className="text-sm font-semibold">Sinais Zero</h2><p className="text-[10px] text-muted-foreground">Leads com presença digital não identificada</p></div><span className="text-[11px] text-muted-foreground">{visibleResults.length} encontrados</span></div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {scanning ? <div className="space-y-2 px-4 py-3"><div className="flex items-center gap-2 py-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Consultando sinais zero...</div>{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-md border border-border/50 bg-muted/40" />)}</div>
             : error ? <p className="px-4 py-6 text-xs text-destructive">{error}</p>
-            : visibleResults.length === 0 ? <p className="px-4 py-6 text-xs text-muted-foreground">{results.length === 0 ? "Pesquise um local, escolha as categorias e clique em Varrer área." : "Nenhum Sinal Zero com telefone/WhatsApp passou nos filtros atuais."}</p>
+            : visibleResults.length === 0 ? <p className="px-4 py-6 text-xs text-muted-foreground">{results.length === 0 ? "Pesquise um local, escolha as categorias e clique em Varrer área." : "Nenhum Sinal Zero confiável com telefone/WhatsApp passou nos filtros atuais."}</p>
             : visibleResults.map((item) => <PlaceRow key={item.id} place={item} active={item.id === selectedId} saved={savedLeads.some((l) => l.id === item.id)} onSelect={setSelectedId} onToggleSave={handleToggleSave} />)}
         </div>
       </aside>
