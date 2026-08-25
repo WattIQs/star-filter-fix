@@ -11,15 +11,10 @@ const DIRECT_DIGITAL_KEYS = [
   "email", "contact:email",
 ];
 
-const NOTABLE_KEYS = [
-  "brand", "operator", "brand:wikidata", "brand:wikipedia",
-  "operator:wikidata", "operator:wikipedia", "wikidata", "wikipedia",
-];
-
 const CHAIN_PATTERNS = [
   "mcdonald", "burger king", "subway", "starbucks", "kfc", "pizza hut",
-  "domino", "habib", "giraffas", "bob's", "bobs", "spoleto", "madero",
-  "outback", "coco bambu", "china in box", "ragazzo", "carrefour", "assai",
+  "domino", "habib", "giraffas", "spoleto", "madero", "outback",
+  "coco bambu", "china in box", "ragazzo", "carrefour", "assai",
   "atacadao", "pao de acucar", "extra", "oxxo", "drogasil", "droga raia",
   "raia drogasil", "drogaria sao paulo", "drogarias pacheco", "pague menos",
   "panvel", "ultrafarma", "smart fit", "bluefit", "selfit", "bio ritmo",
@@ -41,40 +36,29 @@ function hasValue(tags: Record<string, string>, keys: string[]): boolean {
   return keys.some((key) => Boolean(tags[key]?.trim()));
 }
 
-function looksLikeChainOrNotable(tags: Record<string, string>): boolean {
-  if (hasValue(tags, ["brand", "operator", "brand:wikidata", "brand:wikipedia", "operator:wikidata", "operator:wikipedia"])) return true;
-  // Wikidata/Wikipedia alone are not counted as digital presence, but are a strong
-  // noise signal for this prospecting product because notable businesses are often mapped there.
-  if (hasValue(tags, ["wikidata", "wikipedia"])) return true;
-
-  const identity = normalize([tags.name, tags.brand, tags.operator, tags.official_name].filter(Boolean).join(" "));
+function looksLikeKnownChain(tags: Record<string, string>): boolean {
+  const identity = normalize(
+    [tags.name, tags.brand, tags.operator, tags.official_name]
+      .filter(Boolean)
+      .join(" "),
+  );
+  if (!identity) return false;
   return CHAIN_PATTERNS.some((pattern) => identity.includes(pattern));
 }
 
-function ratingFromTags(tags: Record<string, string>): number | null {
-  const raw = tags["rating"] ?? tags["rating:average"] ?? tags["stars"];
-  if (!raw) return null;
-  const value = Number.parseFloat(raw.replace(",", ".").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(value) ? value : null;
-}
-
 /**
- * Strict prospecting gate. It intentionally prefers precision over recall:
- * a lead only passes when OSM contains no direct digital-presence signal and
- * no strong chain/notability signal.
+ * Local Sinal Zero gate.
+ *
+ * Important: OSM metadata such as brand/operator/Wikidata is not treated as
+ * commercial digital presence by itself, because many legitimate local
+ * businesses have those fields populated. Only explicit commercial channels
+ * or a clearly recognized chain are rejected here.
  */
 export function isStrictSignalZero(place: Establishment): boolean {
   const tags = place.tags ?? {};
 
   if (hasValue(tags, DIRECT_DIGITAL_KEYS)) return false;
-  if (looksLikeChainOrNotable(tags)) return false;
-
-  // Very highly rated mapped businesses are usually poor prospecting targets.
-  // Only apply this when OSM actually provides a rating; never invent one.
-  const rating = place.rating ?? ratingFromTags(tags);
-  if (rating !== null && rating >= 4.8) return false;
-
-  // If the original classifier says there is any direct digital signal, reject it.
+  if (looksLikeKnownChain(tags)) return false;
   if (place.level !== "zero") return false;
 
   return true;
