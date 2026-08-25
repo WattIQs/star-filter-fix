@@ -136,11 +136,17 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   }
 
   const search = await searchLeadPresence(lead);
-  if (search.successfulQueries === 0) {
+  // Sem itens, não temos evidência suficiente para concluir nada sobre presença.
+  // Isso evita transformar um CSE mal configurado em um falso Sinal Zero.
+  if (search.successfulQueries === 0 || search.items.length === 0) {
     return {
       status: "unverified",
       score: confidence === "high" ? 70 : 60,
-      reasons: ["Não foi possível obter resultados do mecanismo de pesquisa externo."],
+      reasons: [
+        search.successfulQueries === 0
+          ? "Não foi possível obter resultados do mecanismo de pesquisa externo."
+          : "O mecanismo respondeu, mas não retornou evidência suficiente para verificar este negócio.",
+      ],
       checked: false,
       foundDigitalPresence: false,
       contactConfidence: confidence,
@@ -196,9 +202,7 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     };
   }
 
-  reasons.push(items.length === 0
-    ? "A pesquisa respondeu, mas não encontrou evidência suficiente de presença digital comercial."
-    : "Nenhuma presença digital comercial com correspondência forte foi encontrada.");
+  reasons.push("Nenhuma presença digital comercial com correspondência forte foi encontrada nos resultados obtidos.");
 
   return {
     status: score >= 85 ? "verified" : "unverified",
