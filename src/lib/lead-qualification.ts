@@ -16,13 +16,9 @@ function getTag(tags: Record<string, string>, keys: string[]): string | null {
 }
 
 const DIGITAL_TAG_KEYS = [
-  "website", "contact:website", "url", "contact:url",
-  "instagram", "contact:instagram",
-  "facebook", "contact:facebook",
-  "twitter", "contact:twitter", "x", "contact:x",
-  "tiktok", "contact:tiktok",
-  "youtube", "contact:youtube",
-  "linkedin", "contact:linkedin",
+  "website", "contact:website", "url", "contact:url", "instagram", "contact:instagram",
+  "facebook", "contact:facebook", "twitter", "contact:twitter", "x", "contact:x",
+  "tiktok", "contact:tiktok", "youtube", "contact:youtube", "linkedin", "contact:linkedin",
   "email", "contact:email",
 ];
 
@@ -38,13 +34,8 @@ const WELL_KNOWN_BRANDS = [
 ];
 
 function normalizeText(value: string | null | undefined): string {
-  return (value ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9&' ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9&' ]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function hasTag(tags: Record<string, string>, keys: string[]): boolean {
@@ -52,9 +43,7 @@ function hasTag(tags: Record<string, string>, keys: string[]): boolean {
 }
 
 function hasWellKnownBrand(tags: Record<string, string>): boolean {
-  const haystack = normalizeText(
-    [tags.name, tags.brand, tags.operator, tags.official_name].filter(Boolean).join(" "),
-  );
+  const haystack = normalizeText([tags.name, tags.brand, tags.operator, tags.official_name].filter(Boolean).join(" "));
   if (!haystack) return false;
   return WELL_KNOWN_BRANDS.some((brand) => {
     const normalizedBrand = normalizeText(brand);
@@ -159,14 +148,11 @@ function formatCuisine(value: string | null): string | null {
 
 function buildDetails(tags: Record<string, string>): EstablishmentDetails {
   return {
-    cuisine: formatCuisine(getTag(tags, ["cuisine"])),
-    openingHours: getTag(tags, ["opening_hours"]),
-    priceRange: getTag(tags, ["price_range", "price"]),
-    street: getTag(tags, ["addr:street"]), housenumber: getTag(tags, ["addr:housenumber"]),
-    neighbourhood: getTag(tags, ["addr:suburb", "addr:neighbourhood"]), city: getTag(tags, ["addr:city"]), state: getTag(tags, ["addr:state"]), postcode: getTag(tags, ["addr:postcode"]),
-    takeaway: getTag(tags, ["takeaway"]), delivery: getTag(tags, ["delivery"]), outdoorSeating: getTag(tags, ["outdoor_seating"]),
-    wheelchair: getTag(tags, ["wheelchair"]), smoking: getTag(tags, ["smoking"]), vegetarian: getTag(tags, ["diet:vegetarian"]),
-    airConditioning: getTag(tags, ["air_conditioning"]), capacity: getTag(tags, ["capacity", "capacity:seats"]),
+    cuisine: formatCuisine(getTag(tags, ["cuisine"])), openingHours: getTag(tags, ["opening_hours"]), priceRange: getTag(tags, ["price_range", "price"]),
+    street: getTag(tags, ["addr:street"]), housenumber: getTag(tags, ["addr:housenumber"]), neighbourhood: getTag(tags, ["addr:suburb", "addr:neighbourhood"]),
+    city: getTag(tags, ["addr:city"]), state: getTag(tags, ["addr:state"]), postcode: getTag(tags, ["addr:postcode"]), takeaway: getTag(tags, ["takeaway"]),
+    delivery: getTag(tags, ["delivery"]), outdoorSeating: getTag(tags, ["outdoor_seating"]), wheelchair: getTag(tags, ["wheelchair"]), smoking: getTag(tags, ["smoking"]),
+    vegetarian: getTag(tags, ["diet:vegetarian"]), airConditioning: getTag(tags, ["air_conditioning"]), capacity: getTag(tags, ["capacity", "capacity:seats"]),
     brand: getTag(tags, ["brand"]), operator: getTag(tags, ["operator"]),
   };
 }
@@ -196,9 +182,8 @@ function extractPriceLevel(tags: Record<string, string>): 1 | 2 | 3 | null {
 }
 
 function inferPriceLevel(tags: Record<string, string>, categoryKey: CategoryKey | null): 1 | 2 | 3 | null {
-  const cuisine = normalizeText(tags.cuisine);
-  const name = normalizeText(tags.name);
-  if (/(steak|steakhouse|japanese|sushi|seafood|wine|bistro|gourmet|emporio)/.test(cuisine)) return 3;
+  const cuisine = normalizeText(tags["cuisine"]); const name = normalizeText(tags["name"]);
+  if (/(steak|steakhouse|japanese|sushi|seafood|wine|bistro|gourmet|emporio|empório)/.test(cuisine)) return 3;
   if (/(outback|madero|coco bambu)/.test(name)) return 3;
   if (categoryKey === "fast_food" || categoryKey === "bakery" || categoryKey === "cafe" || categoryKey === "convenience") return 1;
   if (categoryKey === "restaurant" || categoryKey === "bar" || categoryKey === "pub") return 2;
@@ -208,31 +193,29 @@ function inferPriceLevel(tags: Record<string, string>, categoryKey: CategoryKey 
 
 function buildAddress(tags: Record<string, string>): string {
   const parts: string[] = [];
-  const street = tags["addr:street"];
-  const housenumber = tags["addr:housenumber"];
+  const street = tags["addr:street"]; const housenumber = tags["addr:housenumber"];
   if (street) parts.push(housenumber ? `${street}, ${housenumber}` : street);
-  const suburb = tags["addr:suburb"] ?? tags["addr:neighbourhood"];
-  if (suburb) parts.push(suburb);
+  const suburb = tags["addr:suburb"] ?? tags["addr:neighbourhood"]; if (suburb) parts.push(suburb);
   if (tags["addr:city"]) parts.push(tags["addr:city"]);
   if (tags["addr:state"]) parts.push(tags["addr:state"]);
   return parts.join(" · ") || "";
 }
 
 function resolveCategory(tags: Record<string, string>): { label: string; key: CategoryKey | null; osmValue: string } {
-  const osmValue = tags.amenity ?? tags.shop ?? tags.leisure ?? "";
+  const osmValue = tags["amenity"] ?? tags["shop"] ?? tags["leisure"] ?? "";
   let key: CategoryKey | null = null;
   for (const candidate of Object.keys(CATEGORIES) as CategoryKey[]) {
     const def = CATEGORIES[candidate];
-    if (def.filters.some((f) => tags[f.key] !== undefined && f.values.includes(tags[f.key] as string))) {
-      key = candidate;
-      break;
-    }
+    if (def.filters.some((f) => tags[f.key] !== undefined && f.values.includes(tags[f.key] as string))) { key = candidate; break; }
   }
-  const label = OSM_VALUE_LABELS[osmValue] ?? (key ? CATEGORIES[key].label : osmValue.replace(/_/g, " "));
+  const label = OSM_VALUE_LABELS[osmValue] ?? (key ? CATEGORIES[key].label : osmValue.replace(/_/g, " ") || "Estabelecimento");
   return { label, key, osmValue };
 }
 
-export function processOverpassResults(elements: Array<{ type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }>, categories: CategoryKey[]): Establishment[] {
+export function processOverpassResults(
+  elements: Array<{ type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }>,
+  categories: CategoryKey[],
+): Establishment[] {
   const categorySet = new Set(categories);
   const seen = new Set<string>();
   const results: Establishment[] = [];
@@ -251,24 +234,11 @@ export function processOverpassResults(elements: Array<{ type: string; id: numbe
     const details = buildDetails(tags);
     const contact = buildContact(tags);
     const rating = extractRating(tags);
-    const directPrice = extractPriceLevel(tags);
-    const priceLevel = directPrice ?? inferPriceLevel(tags, resolved.key);
+    const priceLevel = extractPriceLevel(tags) ?? inferPriceLevel(tags, resolved.key);
     results.push({
-      id,
-      name,
-      category: resolved.label,
-      categoryKey: resolved.key,
-      lat: center.lat,
-      lon: center.lon,
-      rating,
-      priceLevel,
-      address: buildAddress(tags),
-      level: classification.level,
-      signals: classification.signals,
-      signalCount: classification.signalCount,
-      contact,
-      details,
-      tags,
+      id, name, category: resolved.label, categoryKey: resolved.key, lat: center.lat, lon: center.lon,
+      rating, priceLevel, address: buildAddress(tags), level: classification.level, signals: classification.signals,
+      signalCount: classification.signalCount, contact, details, tags,
     });
   }
   return results;
