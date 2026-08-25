@@ -129,5 +129,8 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
     const verified = await verifyLeads(candidates);
     const healthy = verified.some((lead) => lead.verification.checked);
 
-    return { leads: verified, external: true, healthy };
+    // O cliente só deve aplicar o portão externo quando houve pelo menos
+    // alguma evidência retornada pelo mecanismo. Se o CSE estiver vazio,
+    // restrito ou indisponível, preservamos o modo local em vez de zerar a lista.
+    return { leads: verified, external: healthy, healthy };
   });
