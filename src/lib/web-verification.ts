@@ -43,11 +43,13 @@ function similarity(name: string, text: string): number {
   return wanted.filter((token) => source.includes(token)).length / wanted.length;
 }
 
-function locationMatch(lead: Establishment, text: string): boolean {
-  const source = normalize(text);
-  const locationTokens = [lead.details.neighbourhood, lead.details.city, lead.details.state]
-    .flatMap((value) => (value ? tokens(value) : []));
-  return locationTokens.some((token) => source.includes(token));
+function pathIdentity(link: string): string {
+  try {
+    const url = new URL(link);
+    return `${url.hostname} ${url.pathname} ${url.search}`;
+  } catch {
+    return "";
+  }
 }
 
 function isSocial(link: string): boolean {
@@ -75,22 +77,6 @@ function isDirectory(link: string): boolean {
   }
 }
 
-function socialProfileMatches(lead: Establishment, link: string, evidence: string): boolean {
-  const score = similarity(lead.name, evidence);
-  const location = locationMatch(lead, evidence);
-  let path = "";
-  try {
-    path = new URL(link).pathname.toLowerCase();
-  } catch {
-    return false;
-  }
-  const nameTokens = tokens(lead.name);
-  const usernameMatch = nameTokens.length > 0 && nameTokens.some((token) => path.includes(token));
-  // A social result is considered a real hit only when it has strong identity
-  // evidence. This prevents common words/names from eliminating good leads.
-  return score >= 0.75 && (location || usernameMatch);
-}
-
 async function googleSearch(query: string): Promise<SearchItem[]> {
   const key = env("GOOGLE_SEARCH_API_KEY");
   const cx = env("GOOGLE_SEARCH_CX");
@@ -107,75 +93,115 @@ async function googleSearch(query: string): Promise<SearchItem[]> {
   const response = await fetchWithTimeout(
     url.toString(),
     { headers: { Accept: "application/json" } },
-    6000,
+    6500,
   );
   if (!response.ok) return [];
   const data = (await response.json()) as { items?: SearchItem[] };
   return data.items ?? [];
 }
 
+async function searchLeadPresence(lead: Establishment): Promise<SearchItem[]> {
+  const cleanName = lead.name.replace(/"/g, "").trim();
+  const location = [
+    lead.details.neighbourhood,
+    lead.details.city,
+    lead.details.state,
+  ].filter(Boolean).join(" ");
+  const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
+  const phone = lead.contact.phoneDigits ?? "";
+
+  const queries = [
+    `"${cleanName}" "${location}" site:instagram.com`,
+    `"${cleanName}" "${location}" site:facebook.com`,
+    `"${cleanName}" "${location}" site:tiktok.com`,
+    `"${cleanName}" "${location}" site:youtube.com`,
+    `"${cleanName}" "${location}" ${address}`,
+    phone ? `"${phone}" "${cleanName}"` : `"${cleanName}" "${location}" official`,
+  ];
+
+  const batches = await Promise.all(queries.map((query) => googleSearch(query)));
+  return batches.flat();
+}
+
+/**
+ * Qualifica com prioridade máxima à precisão.
+ * Um resultado externo só invalida o Sinal Zero quando há correspondência forte
+ * entre o negócio e o perfil/site encontrado.
+ */
 export async function verifyLead(lead: Establishment): Promise<LeadVerification> {
+  if (!externalVerificationConfigured()) {
+    return {
+      status: "unverified",
+      score: 50,
+      reasons: ["Verificação externa não configurada."],
+      checked: false,
+      foundDigitalPresence: false,
+      contactConfidence: lead.contact.whatsappValid
+        ? "high"
+        : lead.contact.phoneDigits
+          ? "medium"
+          : "low",
+    };
+  }
+
+  const items = await searchLeadPresence(lead);
+  const reasons: string[] = [];
+  let score = 100;
+  let foundDigitalPresence = false;
+
+  for (const item of items) {
+    const link = item.link ?? "";
+    if (!link) continue;
+
+    const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
+    const urlEvidence = pathIdentity(link);
+    const nameMatch = similarity(lead.name, evidence);
+    const urlMatch = similarity(lead.name, urlEvidence);
+    const locationText = [lead.details.neighbourhood, lead.details.city, lead.details.state]
+      .filter(Boolean)
+      .join(" ");
+    const locationMatch = locationText ? similarity(locationText, evidence) : 0;
+
+    const combinedMatch = Math.max(
+      nameMatch,
+      urlMatch,
+      nameMatch * 0.7 + locationMatch * 0.3,
+    );
+
+    // Perfil social: exige identidade do nome no resultado ou na própria URL.
+    if (isSocial(link) && combinedMatch >= 0.55) {
+      foundDigitalPresence = true;
+      score -= 90;
+      reasons.push(
+        `Presença social encontrada com correspondência de ${Math.round(combinedMatch * 100)}%.`,
+      );
+      break;
+    }
+
+    // Site próprio: exclui diretórios e exige correspondência de negócio.
+    if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.70) {
+      foundDigitalPresence = true;
+      score -= 85;
+      reasons.push(
+        `Possível site oficial encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`,
+      );
+      break;
+    }
+  }
+
   const contactConfidence = lead.contact.whatsappValid
     ? "high"
     : lead.contact.phoneDigits
       ? "medium"
       : "low";
 
-  if (!externalVerificationConfigured()) {
-    return {
-      status: "unverified",
-      score: contactConfidence === "high" ? 90 : 80,
-      reasons: ["Verificação externa não configurada; candidato preservado pela verificação local."],
-      checked: false,
-      foundDigitalPresence: false,
-      contactConfidence,
-    };
-  }
-
-  const location = [lead.details.neighbourhood, lead.details.city, lead.details.state]
-    .filter(Boolean)
-    .join(" ");
-  const cleanName = lead.name.replace(/"/g, "");
-
-  const [general, instagram, facebook] = await Promise.all([
-    googleSearch(`"${cleanName}" ${location}`.trim()),
-    googleSearch(`"${cleanName}" ${location} site:instagram.com`.trim()),
-    googleSearch(`"${cleanName}" ${location} site:facebook.com`.trim()),
-  ]);
-
-  const all = [...general, ...instagram, ...facebook];
-  const reasons: string[] = [];
-  let foundDigitalPresence = false;
-  let score = contactConfidence === "high" ? 100 : 90;
-
-  for (const item of all) {
-    const link = item.link ?? "";
-    if (!link) continue;
-    const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
-    const nameScore = similarity(lead.name, evidence);
-
-    if (isSocial(link) && socialProfileMatches(lead, link, evidence)) {
-      foundDigitalPresence = true;
-      reasons.push(`Perfil social correspondente encontrado (${Math.round(nameScore * 100)}% de correspondência).`);
-      score = 0;
-      break;
-    }
-
-    if (!isSocial(link) && !isDirectory(link)) {
-      const strongSiteMatch = nameScore >= 0.85 && locationMatch(lead, evidence);
-      if (strongSiteMatch) {
-        foundDigitalPresence = true;
-        reasons.push("Site externo com forte correspondência de nome e localização encontrado.");
-        score = 0;
-        break;
-      }
-    }
-  }
+  if (contactConfidence === "medium") score -= 5;
+  if (contactConfidence === "low") score -= 40;
 
   if (foundDigitalPresence) {
     return {
       status: "rejected",
-      score: 0,
+      score: Math.max(0, score),
       reasons,
       checked: true,
       foundDigitalPresence: true,
@@ -186,8 +212,8 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   if (contactConfidence === "low") {
     return {
       status: "rejected",
-      score: 20,
-      reasons: ["Nenhum meio de contato acionável foi confirmado."],
+      score: Math.max(0, score),
+      reasons: [...reasons, "Nenhum meio de contato acionável foi confirmado."],
       checked: true,
       foundDigitalPresence: false,
       contactConfidence,
@@ -195,9 +221,10 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   }
 
   reasons.push("Nenhuma presença digital comercial com correspondência forte foi encontrada.");
+
   return {
-    status: "verified",
-    score,
+    status: score >= 85 ? "verified" : "unverified",
+    score: Math.max(0, Math.min(100, score)),
     reasons,
     checked: true,
     foundDigitalPresence: false,
@@ -209,13 +236,18 @@ export async function verifyLeads(
   leads: Establishment[],
 ): Promise<(Establishment & { verification: LeadVerification })[]> {
   const output: (Establishment & { verification: LeadVerification })[] = [];
-  const concurrency = 4;
+  const concurrency = 3;
+
   for (let i = 0; i < leads.length; i += concurrency) {
     const batch = leads.slice(i, i + concurrency);
     const verified = await Promise.all(
-      batch.map(async (lead) => ({ ...lead, verification: await verifyLead(lead) })),
+      batch.map(async (lead) => ({
+        ...lead,
+        verification: await verifyLead(lead),
+      })),
     );
     output.push(...verified);
   }
+
   return output;
 }
