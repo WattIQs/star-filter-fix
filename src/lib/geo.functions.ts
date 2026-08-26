@@ -21,28 +21,12 @@ export interface PlaceSuggestion {
   boundingBox: BoundingBox | null;
 }
 
-type NominatimResult = {
-  display_name: string;
-  lat: string;
-  lon: string;
-  boundingbox?: [string, string, string, string];
-};
+type NominatimResult = { display_name: string; lat: string; lon: string; boundingbox?: [string, string, string, string] };
 
 function toPlaceSuggestion(r: NominatimResult): PlaceSuggestion {
   const bb = r.boundingbox;
   const parts = r.display_name.split(",").map((p) => p.trim());
-  return {
-    label: r.display_name,
-    shortLabel: parts.slice(0, 3).join(", "),
-    lat: Number.parseFloat(r.lat),
-    lon: Number.parseFloat(r.lon),
-    boundingBox: bb && bb.length >= 4 ? {
-      south: Number.parseFloat(bb[0] ?? "0"),
-      north: Number.parseFloat(bb[1] ?? "0"),
-      west: Number.parseFloat(bb[2] ?? "0"),
-      east: Number.parseFloat(bb[3] ?? "0"),
-    } : null,
-  };
+  return { label: r.display_name, shortLabel: parts.slice(0, 3).join(", "), lat: Number.parseFloat(r.lat), lon: Number.parseFloat(r.lon), boundingBox: bb && bb.length >= 4 ? { south: Number.parseFloat(bb[0] ?? "0"), north: Number.parseFloat(bb[1] ?? "0"), west: Number.parseFloat(bb[2] ?? "0"), east: Number.parseFloat(bb[3] ?? "0") } : null };
 }
 
 function dedupePlaces(results: NominatimResult[]): NominatimResult[] {
@@ -78,12 +62,8 @@ async function queryOverpassMirror(mirror: string, query: string): Promise<Overp
   try {
     const response = await fetchWithTimeout(
       mirror,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA },
-        body: `data=${encodeURIComponent(query)}`,
-      },
-      5000,
+      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA }, body: `data=${encodeURIComponent(query)}` },
+      13000,
     );
     if (!response.ok) return null;
     const json = (await response.json()) as { elements?: OverpassElement[] };
@@ -118,24 +98,18 @@ function splitArea(area: BoundingBox): BoundingBox[] {
   const east = Math.max(area.west, area.east);
   const height = north - south;
   const width = east - west;
-  const maxSpan = 0.10;
-  const rows = Math.max(1, Math.min(4, Math.ceil(height / maxSpan)));
-  const cols = Math.max(1, Math.min(4, Math.ceil(width / maxSpan)));
+  const maxSpan = 0.15;
+  const rows = Math.max(1, Math.min(3, Math.ceil(height / maxSpan)));
+  const cols = Math.max(1, Math.min(3, Math.ceil(width / maxSpan)));
   const tileHeight = height / rows || maxSpan;
   const tileWidth = width / cols || maxSpan;
   const tiles: BoundingBox[] = [];
 
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      tiles.push({
-        south: south + row * tileHeight,
-        north: row === rows - 1 ? north : south + (row + 1) * tileHeight,
-        west: west + col * tileWidth,
-        east: col === cols - 1 ? east : west + (col + 1) * tileWidth,
-      });
+      tiles.push({ south: south + row * tileHeight, north: row === rows - 1 ? north : south + (row + 1) * tileHeight, west: west + col * tileWidth, east: col === cols - 1 ? east : west + (col + 1) * tileWidth });
     }
   }
-
   return tiles;
 }
 
@@ -153,10 +127,7 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
     if (q.length < 2) return [];
     const primary = await queryPlaces(q);
     const fallback = primary.length > 0 ? [] : await queryPlaces(`${q}, Brasil`);
-    return dedupePlaces([...primary, ...fallback])
-      .filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)))
-      .slice(0, 8)
-      .map(toPlaceSuggestion);
+    return dedupePlaces([...primary, ...fallback]).filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon))).slice(0, 8).map(toPlaceSuggestion);
   });
 
 export const searchOverpassServer = createServerFn({ method: "POST" })
@@ -168,9 +139,7 @@ export const searchOverpassServer = createServerFn({ method: "POST" })
     const centerLat = (data.area.south + data.area.north) / 2;
     const centerLon = (data.area.west + data.area.east) / 2;
     const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 8000));
-    if (fallback === null && primary === null) {
-      throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
-    }
+    if (fallback === null && primary === null) throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
     return { elements: mergeOverpassResults([primary ?? [], fallback ?? []]) };
   });
 
@@ -178,24 +147,9 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
   .validator((data: { leads: Establishment[] }) => data)
   .handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean; healthy: boolean }> => {
     if (!externalVerificationConfigured()) {
-      return {
-        leads: data.leads.map((lead) => ({
-          ...lead,
-          verification: {
-            status: "unverified" as const,
-            score: 0,
-            reasons: ["Busca externa não configurada. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX para validar presença digital."],
-            checked: false,
-            foundDigitalPresence: false,
-            foundWebsite: false,
-            contactConfidence: lead.contact.whatsappValid ? "high" : lead.contact.phoneDigits ? "medium" : "low",
-          },
-        })),
-        external: false,
-        healthy: false,
-      };
+      return { leads: data.leads.map((lead) => ({ ...lead, verification: { status: "unverified" as const, score: 0, reasons: ["Busca externa não configurada. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX para validar presença digital."], checked: false, foundDigitalPresence: false, foundWebsite: false, contactConfidence: lead.contact.whatsappValid ? "high" : lead.contact.phoneDigits ? "medium" : "low" } })), external: false, healthy: false };
     }
-
     const verified = await verifyLeads(data.leads);
-    return { leads: verified, external: true, healthy: verified.every((lead) => lead.verification.checked) };
+    const healthy = verified.length === 0 || verified.every((lead) => lead.verification.checked);
+    return { leads: verified, external: true, healthy };
   });
