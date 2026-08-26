@@ -46,11 +46,21 @@ function MapSkeleton() {
   );
 }
 
+function hasContact(lead: Establishment): boolean {
+  return Boolean(lead.contact.whatsappValid || lead.contact.instagramUrl);
+}
+
+function hasWebsite(lead: Establishment): boolean {
+  return Boolean(lead.signals.website || lead.contact.websiteUrl);
+}
+
 function Index() {
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
   const [ratingFilter, setRatingFilter] = useState("any");
   const [priceFilter, setPriceFilter] = useState("any");
   const [signalZeroOnly, setSignalZeroOnly] = useState(false);
+  const [contactOnly, setContactOnly] = useState(false);
+  const [websiteOnly, setWebsiteOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("relevance");
   const [scanning, setScanning] = useState(false);
   const [results, setResults] = useState<Establishment[]>([]);
@@ -66,15 +76,13 @@ function Index() {
   useEffect(() => setSavedLeads(getSavedLeads()), []);
 
   const runSignalZeroVerification = async (leads: Establishment[], scanId: number) => {
-    const candidates = leads
-      .filter(isStrictSignalZero)
-      .filter((r) => Boolean(r.contact.whatsappValid || r.contact.phoneDigits));
+    const candidates = leads.filter(isStrictSignalZero);
 
     if (candidates.length === 0) {
       if (scanId === scanIdRef.current) {
         setResults([]);
         setVerificationMode("local");
-        setError("Nenhum Sinal Zero com contato acionável foi encontrado nessa área.");
+        setError("Nenhum candidato Sinal Zero foi encontrado nessa área.");
       }
       return;
     }
@@ -84,21 +92,27 @@ function Index() {
     try {
       const verified = await verifyLeadsServer({ data: { leads: candidates.slice(0, 40) } });
       if (scanId !== scanIdRef.current) return;
-      setVerificationMode(verified.external ? "external" : "local");
-      const finalLeads = verified.external
-        ? verified.leads.filter((lead) => lead.verification.status === "verified" && lead.verification.score >= 85)
-        : candidates;
+
+      // Sinal Zero é o modo mais rigoroso: se a verificação externa não
+      // conseguiu confirmar os candidatos, não fingimos que eles são zero.
+      if (!verified.external) {
+        setVerificationMode("local");
+        setResults([]);
+        setError("Sinal Zero exige verificação externa de presença digital. Configure a busca externa para confirmar os leads antes de exibi-los.");
+        return;
+      }
+
+      setVerificationMode("external");
+      const finalLeads = verified.leads.filter(
+        (lead) => lead.verification.checked && lead.verification.status === "verified" && lead.verification.score >= 85 && !lead.verification.foundDigitalPresence,
+      );
       setResults(finalLeads);
-      setError(finalLeads.length === 0
-        ? verified.external
-          ? "Nenhum candidato passou pela verificação externa de presença digital e contato."
-          : "Nenhum Sinal Zero confiável com telefone/WhatsApp passou nos filtros atuais."
-        : null);
+      setError(finalLeads.length === 0 ? "Nenhum candidato passou pela verificação externa como Sinal Zero. Isso evita mostrar negócios que podem ter presença digital fora do cadastro do mapa." : null);
     } catch (err) {
       if (scanId !== scanIdRef.current) return;
       setVerificationMode("local");
-      setResults(candidates);
-      setError(err instanceof Error ? err.message : "Não foi possível verificar os candidatos externamente.");
+      setResults([]);
+      setError(err instanceof Error ? err.message : "Não foi possível confirmar o Sinal Zero externamente.");
     }
   };
 
@@ -202,6 +216,8 @@ function Index() {
 
   const visibleResults = useMemo(() => {
     let list = results;
+    if (contactOnly) list = list.filter(hasContact);
+    if (websiteOnly) list = list.filter(hasWebsite);
     list = list.filter((r) => ratingMatchesFilter(r.rating, ratingFilter));
     if (priceFilter !== "any") {
       const level = Number.parseInt(priceFilter, 10);
@@ -220,7 +236,7 @@ function Index() {
       }
     });
     return sorted;
-  }, [results, ratingFilter, priceFilter, sortKey]);
+  }, [results, contactOnly, websiteOnly, ratingFilter, priceFilter, sortKey]);
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
@@ -241,6 +257,10 @@ function Index() {
             onPriceFilterChange={setPriceFilter}
             signalZeroOnly={signalZeroOnly}
             onSignalZeroOnlyChange={handleSignalZeroChange}
+            contactOnly={contactOnly}
+            onContactOnlyChange={setContactOnly}
+            websiteOnly={websiteOnly}
+            onWebsiteOnlyChange={setWebsiteOnly}
             sortKey={sortKey}
             onSortKeyChange={setSortKey}
           />
@@ -270,7 +290,7 @@ function Index() {
               <div className="space-y-2 px-4 py-3">
                 <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {signalZeroOnly ? "Verificando leads..." : "Consultando estabelecimentos..."}
+                  {signalZeroOnly ? "Verificando Sinal Zero..." : "Consultando estabelecimentos..."}
                 </div>
                 {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-md border border-border/50 bg-muted/40" />)}
               </div>
@@ -293,7 +313,7 @@ function Index() {
           {scanning && (
             <div className="pointer-events-none absolute left-1/2 top-3 z-[500] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              {signalZeroOnly ? "Verificando leads..." : "Buscando estabelecimentos..."}
+              {signalZeroOnly ? "Verificando Sinal Zero..." : "Buscando estabelecimentos..."}
             </div>
           )}
         </main>
