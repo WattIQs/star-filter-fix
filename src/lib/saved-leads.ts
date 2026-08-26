@@ -2,6 +2,14 @@ import type { Establishment, SavedLead } from "./types";
 
 const STORAGE_KEY = "sinal-zero:saved-leads:v1";
 
+// Some Vite browser bundles do not expose Node's global `process`. The page
+// only uses it as a harmless feature-detection guard, so provide a tiny safe
+// browser fallback instead of allowing a filter click to throw ReferenceError.
+const runtime = globalThis as typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> };
+};
+if (!runtime.process) runtime.process = { env: {} };
+
 function read(): SavedLead[] {
   if (typeof window === "undefined") return [];
   try {
