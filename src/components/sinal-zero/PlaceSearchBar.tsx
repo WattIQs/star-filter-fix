@@ -74,6 +74,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
     setSuggestions([]);
     setValue(place.shortLabel);
     setOpen(false);
+    // Selecting a suggestion only changes the target. The actual scan is explicit.
     onPick(place);
   };
 
