@@ -82,7 +82,6 @@ async function googleSearch(query: string): Promise<SearchResponse> {
   url.searchParams.set("num", "8");
   url.searchParams.set("hl", "pt-BR");
   url.searchParams.set("gl", "br");
-  url.searchParams.set("safe", "off");
 
   try {
     const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 5000);
@@ -100,12 +99,12 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
   const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
   const phone = lead.contact.phoneDigits ?? "";
 
-  // Poucas consultas de alta informação. O CSE é a etapa cara da verificação;
-  // três buscas bem direcionadas são preferíveis a seis buscas paralelas por lead.
+  // Três buscas com funções diferentes: redes sociais, site próprio e
+  // identidade por endereço/telefone. Isso melhora a precisão sem dobrar o delay.
   const queries = [
-    `"${cleanName}" "${location}" (site:instagram.com OR site:facebook.com OR site:tiktok.com)`,
-    `"${cleanName}" "${location}" "${address}"`.trim(),
-    phone ? `"${phone}" "${cleanName}"` : `"${cleanName}" "${location}" official`,
+    `"${cleanName}" "${location}" (site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com)`,
+    `"${cleanName}" "${location}" "${address}" -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br`,
+    phone ? `"${phone}" "${cleanName}"` : `"${cleanName}" "${location}" "${address}" official`,
   ];
 
   const batches = await Promise.all(queries.map((query) => googleSearch(query)));
@@ -126,7 +125,7 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   if (!externalVerificationConfigured()) {
     return {
       status: "unverified",
-      score: confidence === "high" ? 70 : 60,
+      score: 0,
       reasons: ["Verificação externa não configurada."],
       checked: false,
       foundDigitalPresence: false,
@@ -135,13 +134,13 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   }
 
   const search = await searchLeadPresence(lead);
-  if (search.successfulQueries === 0 || search.items.length === 0) {
+  if (search.successfulQueries < 2 || search.items.length === 0) {
     return {
       status: "unverified",
-      score: confidence === "high" ? 70 : 60,
+      score: 0,
       reasons: [
-        search.successfulQueries === 0
-          ? "Não foi possível obter resultados do mecanismo de pesquisa externo."
+        search.successfulQueries < 2
+          ? "Não houve consultas externas suficientes para confirmar a ausência de presença digital."
           : "O mecanismo respondeu, mas não retornou evidência suficiente para verificar este negócio.",
       ],
       checked: false,
@@ -151,7 +150,6 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   }
 
   const reasons: string[] = [];
-  let score = 100;
   let foundDigitalPresence = false;
 
   for (const item of search.items) {
@@ -167,42 +165,26 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
 
     if (isSocial(link) && combinedMatch >= 0.55) {
       foundDigitalPresence = true;
-      score -= 90;
       reasons.push(`Presença social encontrada com correspondência de ${Math.round(combinedMatch * 100)}%.`);
       break;
     }
 
-    if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.70) {
+    if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.75) {
       foundDigitalPresence = true;
-      score -= 85;
       reasons.push(`Possível site oficial encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`);
       break;
     }
   }
 
-  if (confidence === "medium") score -= 5;
-  if (confidence === "low") score -= 40;
-
   if (foundDigitalPresence) {
-    return { status: "rejected", score: Math.max(0, score), reasons, checked: true, foundDigitalPresence: true, contactConfidence: confidence };
+    return { status: "rejected", score: 0, reasons, checked: true, foundDigitalPresence: true, contactConfidence: confidence };
   }
 
-  if (confidence === "low") {
-    return {
-      status: "rejected",
-      score: Math.max(0, score),
-      reasons: [...reasons, "Nenhum meio de contato acionável foi confirmado."],
-      checked: true,
-      foundDigitalPresence: false,
-      contactConfidence: confidence,
-    };
-  }
-
-  reasons.push("Nenhuma presença digital comercial com correspondência forte foi encontrada nos resultados obtidos.");
+  reasons.push("Nenhuma presença digital comercial com correspondência forte foi encontrada nas consultas externas.");
 
   return {
-    status: score >= 85 ? "verified" : "unverified",
-    score: Math.max(0, Math.min(100, score)),
+    status: "verified",
+    score: 100,
     reasons,
     checked: true,
     foundDigitalPresence: false,
