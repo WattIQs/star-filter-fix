@@ -3,6 +3,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Map, Radar, Rows3 } from "lucide-react";
 import { searchOverpassServer, verifyLeadsServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
+import { getSavedLeads, isLeadSaved, removeLead, saveLead } from "@/lib/saved-leads";
 import type { CategoryKey, Establishment, SavedLead, SortKey } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { CategoryMenu } from "@/components/sinal-zero/CategoryMenu";
@@ -46,23 +47,27 @@ function categoryMatches(lead: Establishment, categories: CategoryKey[]): boolea
   }));
 }
 
-function MapSkeleton() {
-  return <div className="flex h-full w-full items-center justify-center bg-muted/30"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
-}
-
 function hasContact(lead: Establishment): boolean {
   return Boolean(
-    lead.contact.whatsappValid ||
-    lead.contact.phoneDigits ||
-    lead.contact.email ||
-    lead.contact.instagramUrl ||
-    lead.contact.facebookUrl ||
-    lead.contact.websiteUrl ||
-    lead.signals.phone ||
-    lead.signals.email ||
-    lead.signals.instagram ||
-    lead.signals.facebook
+    lead.contact.whatsappValid || lead.contact.phoneDigits || lead.contact.email ||
+    lead.contact.instagramUrl || lead.contact.facebookUrl || lead.contact.websiteUrl ||
+    lead.signals.phone || lead.signals.email || lead.signals.instagram || lead.signals.facebook
   );
+}
+
+function hasWebsite(lead: Establishment): boolean {
+  return Boolean(lead.signals.website || lead.contact.websiteUrl);
+}
+
+function hasDigitalPresence(lead: Establishment): boolean {
+  return Boolean(
+    hasWebsite(lead) || lead.signals.instagram || lead.signals.facebook ||
+    lead.contact.instagramUrl || lead.contact.facebookUrl
+  );
+}
+
+function MapSkeleton() {
+  return <div className="flex h-full w-full items-center justify-center bg-muted/30"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
 }
 
 function Index() {
@@ -85,50 +90,84 @@ function Index() {
   const [mobileView, setMobileView] = useState<"leads" | "map">("leads");
   const scanIdRef = useRef(0);
 
-  useEffect(() => setSavedLeads(getSavedLeads()), []);
+  useEffect(() => {
+    setSavedLeads(getSavedLeads());
+  }, []);
 
-  const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
+  const filterByCategory = (leads: Establishment[], selected = categories) =>
+    leads.filter((lead) => categoryMatches(lead, selected));
 
-  const verifyPresence = async (leads: Establishment[], scanId: number, signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
-    if (leads.length === 0) {
-      if (scanId === scanIdRef.current) {
-        setResults([]);
-        setError(mode === "signal-zero" ? "Nenhum candidato encontrado para verificação Sinal Zero." : mode === "no-website" ? "Nenhum candidato disponível para verificar ausência de site." : "Nenhum candidato satisfaz os filtros de presença.");
-      }
-      return;
-    }
+  const applyPresenceFilter = (leads: Establishment[], signalZero: boolean, noWebsite: boolean) =>
+    leads.filter((lead) => {
+      if (signalZero && lead.level !== "zero") return false;
+      if (noWebsite && hasWebsite(lead)) return false;
+      return true;
+    });
+
+  const verifyPresence = async (
+    leads: Establishment[],
+    scanId: number,
+    signalZero: boolean,
+    noWebsite: boolean,
+    mode: VerificationMode,
+  ) => {
+    if (scanId !== scanIdRef.current) return;
+
+    // The important fix: presence filters are useful even without Google Search.
+    // Sinal Zero is determined from OSM's actual signals; no-site is determined
+    // from the website fields in the establishment. External verification only
+    // improves confidence when configured and never turns a usable local result
+    // into an empty list just because the API is unavailable.
+    const localCandidates = applyPresenceFilter(leads, signalZero, noWebsite);
+    setVerificationMode("off");
+    setResults(localCandidates);
+    setError(localCandidates.length === 0 ? (
+      mode === "signal-zero"
+        ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa."
+        : mode === "no-website"
+          ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa."
+          : "Nenhum estabelecimento satisfaz os filtros de presença selecionados."
+    ) : null);
+
+    if (!localCandidates.length || !process.env) return;
+
     try {
-      const verified = await verifyLeadsServer({ data: { leads } });
+      const verified = await verifyLeadsServer({ data: { leads: localCandidates } });
       if (scanId !== scanIdRef.current) return;
+
       if (!verified.external) {
-        setVerificationMode("off");
-        setResults([]);
-        setError("A verificação web está indisponível. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX no Render.");
+        // Keep local results. Missing external credentials must not break filters.
         return;
       }
+
       setVerificationMode("external");
-      const finalLeads = verified.leads.filter((lead) => {
-        if (!lead.verification.checked) return false;
-        return (!signalZero || !lead.verification.foundDigitalPresence) && (!noWebsite || !lead.verification.foundWebsite);
+      const refined = verified.leads.filter((lead) => {
+        if (!lead.verification.checked) return true;
+        if (signalZero && lead.verification.foundDigitalPresence) return false;
+        if (noWebsite && lead.verification.foundWebsite) return false;
+        return true;
       });
-      setResults(finalLeads);
-      setError(finalLeads.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
-    } catch (err) {
-      if (scanId !== scanIdRef.current) return;
-      setVerificationMode("off");
-      setResults([]);
-      setError(err instanceof Error ? err.message : "Não foi possível concluir a verificação web.");
+      setResults(refined);
+      setError(refined.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
+    } catch {
+      // External verification is an enhancement, not a prerequisite.
+      if (scanId === scanIdRef.current) setVerificationMode("off");
     }
   };
 
-  const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults, selected = categories) => {
+  const runVerificationForCurrentFilters = (
+    signalZero: boolean,
+    noWebsite: boolean,
+    source = allResults,
+    selected = categories,
+  ) => {
     const categoryResults = filterByCategory(source, selected);
     const scanId = ++scanIdRef.current;
     setError(null);
     setSelectedId(null);
     if (!signalZero && !noWebsite) {
       setVerificationMode("off");
-      setResults(source);
+      setResults(categoryResults);
       setScanning(false);
       return;
     }
@@ -149,23 +188,27 @@ function Index() {
     setCenter({ lat: target.lat, lon: target.lon });
     setVerificationMode("off");
     setMobileView("leads");
-    const area = target.boundingBox ?? { south: target.lat - 0.05, north: target.lat + 0.05, west: target.lon - 0.05, east: target.lon + 0.05 };
+    const area = target.boundingBox ?? {
+      south: target.lat - 0.05,
+      north: target.lat + 0.05,
+      west: target.lon - 0.05,
+      east: target.lon + 0.05,
+    };
+
     try {
-      const data = await searchOverpassServer({ data: { area, categories: [] } });
+      const data = await searchOverpassServer({ data: { area, categories } });
       if (scanId !== scanIdRef.current) return;
-      const processed = processOverpassResults(data.elements, []);
+      const processed = processOverpassResults(data.elements, categories);
       setAllResults(processed);
       if (processed.length === 0) {
         setResults([]);
-        setError("Nenhum estabelecimento foi encontrado nessa área. Tente outro local ou amplie a área pesquisada.");
+        setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
         return;
       }
       if (signalZeroOnly || noWebsiteOnly) {
         const mode: VerificationMode = signalZeroOnly && noWebsiteOnly ? "both" : signalZeroOnly ? "signal-zero" : "no-website";
-        const categoryResults = filterByCategory(processed);
-        const verificationId = scanIdRef.current;
-        void verifyPresence(categoryResults, verificationId, signalZeroOnly, noWebsiteOnly, mode).finally(() => {
-          if (verificationId === scanIdRef.current) setScanning(false);
+        void verifyPresence(processed, scanId, signalZeroOnly, noWebsiteOnly, mode).finally(() => {
+          if (scanId === scanIdRef.current) setScanning(false);
         });
       } else {
         setResults(processed);
@@ -179,20 +222,22 @@ function Index() {
   };
 
   const handlePickPlace = (target: PlaceSuggestion) => {
-    // Selecting a location does not scan. Only the explicit scan button does.
     setPlace(target);
     setCenter({ lat: target.lat, lon: target.lon });
     setError(null);
   };
-  const handleScanCurrentPlace = () => { if (place) void runScan(place); else setError("Pesquise primeiro uma cidade, bairro ou local."); };
+
+  const handleScanCurrentPlace = () => {
+    if (place) void runScan(place);
+    else setError("Pesquise primeiro uma cidade, bairro ou local.");
+  };
 
   const handleCategoriesChange = (next: CategoryKey[]) => {
     setCategories(next);
     setError(null);
-    // Categories are local filters after a scan. Only presence verification needs a new server check.
     if (allResults.length > 0) {
       if (signalZeroOnly || noWebsiteOnly) runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly, allResults, next);
-      else setResults(allResults);
+      else setResults(filterByCategory(allResults, next));
     }
   };
 
@@ -227,7 +272,11 @@ function Index() {
         case "price_desc": return (b.priceLevel ?? 0) - (a.priceLevel ?? 0);
         case "price_asc": return (a.priceLevel ?? 99) - (b.priceLevel ?? 99);
         case "name_asc": return a.name.localeCompare(b.name, "pt-BR");
-        default: return (a.signalCount - b.signalCount) || (Number(b.contactable) - Number(a.contactable)) || ((b.rating ?? -1) - (a.rating ?? -1)) || a.name.localeCompare(b.name, "pt-BR");
+        default:
+          return (a.signalCount - b.signalCount) ||
+            (Number(b.contactable) - Number(a.contactable)) ||
+            ((b.rating ?? -1) - (a.rating ?? -1)) ||
+            a.name.localeCompare(b.name, "pt-BR");
       }
     });
     return sorted;
