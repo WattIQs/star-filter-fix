@@ -1,6 +1,6 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Radar } from "lucide-react";
+import { Loader2, Map, Radar, Rows3 } from "lucide-react";
 import { searchOverpassServer, verifyLeadsServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
 import { isStrictSignalZero } from "@/lib/signal-zero-quality";
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "Sinal Zero — Mapa de negócios" },
       { name: "description", content: "Encontre e qualifique negócios para prospecção." },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
     ],
   }),
   component: Index,
@@ -73,6 +74,7 @@ function Index() {
   const [center, setCenter] = useState<{ lat: number; lon: number } | null>(null);
   const [place, setPlace] = useState<PlaceSuggestion | null>(null);
   const [verificationMode, setVerificationMode] = useState<"external" | "local" | "off">("off");
+  const [mobileView, setMobileView] = useState<"leads" | "map">("leads");
   const scanIdRef = useRef(0);
 
   useEffect(() => setSavedLeads(getSavedLeads()), []);
@@ -130,6 +132,7 @@ function Index() {
     setSelectedId(null);
     setCenter({ lat: target.lat, lon: target.lon });
     setVerificationMode("off");
+    setMobileView("leads");
 
     const bb = target.boundingBox;
     const half = MAX_SPAN / 2;
@@ -239,16 +242,25 @@ function Index() {
   }, [results, contactOnly, websiteOnly, ratingFilters, priceFilter, sortKey]);
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
-      <header className="relative z-[3000] flex min-h-14 shrink-0 items-center gap-2 overflow-visible border-b border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur sm:gap-3">
-        <div className="flex shrink-0 items-center gap-2">
-          <Radar className="h-5 w-5 text-signal-zero" />
-          <span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span>
+    <div className="flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground lg:h-screen">
+      <header className="relative z-[3000] shrink-0 border-b border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur lg:flex lg:min-h-14 lg:items-center lg:gap-3 lg:px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
+            <Radar className="h-5 w-5 text-signal-zero" />
+            <span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span>
+          </div>
+          <div className="min-w-0 flex-1 lg:hidden">
+            <PlaceSearchBar onPick={handlePickPlace} scanning={scanning} currentLabel={place?.shortLabel ?? null} />
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <PlaceSearchBar onPick={handlePickPlace} scanning={scanning} currentLabel={place?.shortLabel ?? null} />
+
+        <div className="mt-2 min-w-0 lg:mt-0 lg:flex-1 lg:block">
+          <div className="hidden lg:block">
+            <PlaceSearchBar onPick={handlePickPlace} scanning={scanning} currentLabel={place?.shortLabel ?? null} />
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+
+        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0">
           <CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning} />
           <FiltersMenu
             ratingFilters={ratingFilters}
@@ -271,21 +283,46 @@ function Index() {
         </div>
       </header>
 
-      <div className="relative z-0 flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row lg:gap-3 lg:p-3">
-        <aside className="relative z-20 flex h-[42%] min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-border bg-card/60 lg:h-auto lg:w-[460px] lg:rounded-xl lg:border">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:relative lg:flex-row lg:gap-3 lg:p-3">
+        <div className="flex shrink-0 border-b border-border bg-card px-2 py-1.5 lg:hidden">
+          <div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Área de trabalho">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileView === "leads"}
+              onClick={() => setMobileView("leads")}
+              className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "leads" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              <Rows3 className="h-4 w-4" />
+              Leads <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{visibleResults.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileView === "map"}
+              onClick={() => setMobileView("map")}
+              className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "map" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              <Map className="h-4 w-4" />
+              Mapa
+            </button>
+          </div>
+        </div>
+
+        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}>
           <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-sm font-semibold">{signalZeroOnly ? "Sinais Zero" : "Estabelecimentos"}</h2>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="truncate text-[10px] text-muted-foreground">
                 {signalZeroOnly
                   ? (verificationMode === "external" ? "Verificados externamente · sem presença digital encontrada" : "Sinal Zero ativado")
                   : "Todos os estabelecimentos encontrados nas categorias selecionadas"}
               </p>
             </div>
-            <span className="text-[11px] text-muted-foreground">{visibleResults.length} encontrados</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">{visibleResults.length} encontrados</span>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {scanning ? (
               <div className="space-y-2 px-4 py-3">
                 <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
@@ -304,16 +341,16 @@ function Index() {
           </div>
         </aside>
 
-        <main className="relative z-0 min-h-0 flex-1 overflow-hidden border-t border-border lg:rounded-xl lg:border lg:shadow-lg">
+        <main className={`relative z-0 min-h-0 flex-1 overflow-hidden border-border lg:rounded-xl lg:border lg:shadow-lg ${mobileView === "map" ? "" : "hidden"} lg:block`}>
           <ClientOnly fallback={<MapSkeleton />}>
             <Suspense fallback={<MapSkeleton />}>
               <MapCanvas places={visibleResults} selectedId={selectedId} onSelect={setSelectedId} center={center} />
             </Suspense>
           </ClientOnly>
           {scanning && (
-            <div className="pointer-events-none absolute left-1/2 top-3 z-[500] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg">
+            <div className="pointer-events-none absolute left-1/2 top-3 z-[500] flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              {signalZeroOnly ? "Verificando Sinal Zero..." : "Buscando estabelecimentos..."}
+              <span className="truncate">{signalZeroOnly ? "Verificando Sinal Zero..." : "Buscando estabelecimentos..."}</span>
             </div>
           )}
         </main>
