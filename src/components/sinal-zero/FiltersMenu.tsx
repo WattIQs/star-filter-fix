@@ -49,8 +49,8 @@ function HiddenFilterGroup({ title, summary, open, onToggle, children }: { title
   </div>;
 }
 
-function SelectOptionList({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
-  return <div className="space-y-1.5">{options.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs transition-colors hover:bg-muted/40"><input type="radio" name={`filter-${options === PRICE_OPTIONS ? "price" : "sort"}`} checked={value === option.value} onChange={() => onChange(option.value)} className="h-4 w-4 cursor-pointer accent-primary" /><span>{option.label}</span></label>)}</div>;
+function SelectOptionList<T extends string>({ value, onChange, options, groupName }: { value: T; onChange: (value: T) => void; options: Array<{ value: T; label: string }>; groupName: string }) {
+  return <div className="space-y-1.5">{options.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs transition-colors hover:bg-muted/40"><input type="radio" name={`filter-${groupName}`} checked={value === option.value} onChange={() => onChange(option.value)} className="h-4 w-4 cursor-pointer accent-primary" /><span>{option.label}</span></label>)}</div>;
 }
 
 export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter, onPriceFilterChange, signalZeroOnly, onSignalZeroOnlyChange, contactOnly, onContactOnlyChange, noWebsiteOnly, onNoWebsiteOnlyChange, sortKey, onSortKeyChange }: FiltersMenuProps) {
@@ -80,8 +80,8 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
         {ratingFilters.length > 0 && <button type="button" onClick={() => onRatingFiltersChange([])} className="text-[10px] font-medium text-primary hover:underline">Limpar classificação</button>}
       </HiddenFilterGroup>
 
-      <HiddenFilterGroup title="Preço" summary={priceSummary} open={priceGroupOpen} onToggle={() => setPriceGroupOpen((open) => !open)}><SelectOptionList value={priceFilter} onChange={onPriceFilterChange} options={PRICE_OPTIONS} /></HiddenFilterGroup>
-      <HiddenFilterGroup title="Ordenar por" summary={sortSummary} open={sortGroupOpen} onToggle={() => setSortGroupOpen((open) => !open)}><SelectOptionList value={sortKey} onChange={onSortKeyChange} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ value: key, label: SORT_LABELS[key] }))} /></HiddenFilterGroup>
+      <HiddenFilterGroup title="Preço" summary={priceSummary} open={priceGroupOpen} onToggle={() => setPriceGroupOpen((open) => !open)}><SelectOptionList value={priceFilter} onChange={onPriceFilterChange} options={PRICE_OPTIONS} groupName="price" /></HiddenFilterGroup>
+      <HiddenFilterGroup title="Ordenar por" summary={sortSummary} open={sortGroupOpen} onToggle={() => setSortGroupOpen((open) => !open)}><SelectOptionList<SortKey> value={sortKey} onChange={onSortKeyChange} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ value: key, label: SORT_LABELS[key] }))} groupName="sort" /></HiddenFilterGroup>
     </PopoverContent>
   </Popover>;
 }
