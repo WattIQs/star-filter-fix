@@ -4,10 +4,18 @@ import { CATEGORIES } from "./types";
 /**
  * Monta a query Overpass. O modo normal e o modo Sinal Zero partem da mesma
  * base de estabelecimentos. A decisão de Sinal Zero é feita depois, no
- * classificador local + verificação web. Isso evita eliminar candidatos
- * válidos só porque o OSM não possui todos os campos de presença digital.
+ * classificador local + verificação web.
  */
 export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[], signalZeroOnly = false): string {
+  const bbox = `${area.south},${area.west},${area.north},${area.east}`;
+
+  // Sem categoria selecionada, ainda devemos conseguir varrer a área.
+  // Busca estabelecimentos nomeados por tags comerciais comuns e deixa o
+  // classificador local decidir o tipo e os sinais.
+  if (categories.length === 0) {
+    return `[out:json][timeout:15];\n(\nnwr["name"]["amenity"](${bbox});\nnwr["name"]["shop"](${bbox});\nnwr["name"]["leisure"](${bbox});\n);\nout tags center ${signalZeroOnly ? 1600 : 2000};`;
+  }
+
   const byKey = new Map<string, Set<string>>();
   for (const key of categories) {
     for (const filter of CATEGORIES[key]?.filters ?? []) {
@@ -17,11 +25,9 @@ export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[],
     }
   }
 
-  if (byKey.size === 0) return "[out:json][timeout:12];\n(\n);\nout tags center 1;";
+  if (byKey.size === 0) return `[out:json][timeout:15];\n(\n);\nout tags center 1;`;
 
-  const bbox = `${area.south},${area.west},${area.north},${area.east}`;
   const blocks: string[] = [];
-
   for (const [key, values] of byKey) {
     const escaped = [...values]
       .map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
@@ -29,12 +35,9 @@ export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[],
     const filter = `["${key}"~"^(${escaped})$"]`;
     blocks.push(`node${filter}(${bbox});`);
     blocks.push(`way${filter}(${bbox});`);
+    blocks.push(`relation${filter}(${bbox});`);
   }
 
-  // signalZeroOnly is intentionally not encoded as a strict OSM predicate.
-  // Missing OSM tags do not prove absence of a real-world website/social
-  // profile, so candidates must survive the local quality gate and web
-  // verification in the application layer.
-  const outputLimit = signalZeroOnly ? 1000 : 1200;
-  return `[out:json][timeout:12];\n(\n${blocks.join("\n")}\n);\nout tags center ${outputLimit};`;
+  const outputLimit = signalZeroOnly ? 1400 : 1800;
+  return `[out:json][timeout:15];\n(\n${blocks.join("\n")}\n);\nout tags center ${outputLimit};`;
 }
