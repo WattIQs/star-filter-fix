@@ -11,7 +11,7 @@ export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[],
       const values = filter.values
         .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
         .join("|");
-      if (values) filters.push(`nwr["${filter.key}"~"^(?:${values})$"]["name"](${bbox});`);
+      if (values) filters.push(`nwr["${filter.key}"~"^(${values})$"]["name"](${bbox});`);
     }
   }
 
@@ -33,7 +33,7 @@ export function buildAroundQuery(lat: number, lon: number, categories: CategoryK
       const values = filter.values
         .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
         .join("|");
-      if (values) filters.push(`nwr["${filter.key}"~"^(?:${values})$"]["name"](around:${radiusMeters},${lat},${lon});`);
+      if (values) filters.push(`nwr["${filter.key}"~"^(${values})$"]["name"](around:${radiusMeters},${lat},${lon});`);
     }
   }
 
