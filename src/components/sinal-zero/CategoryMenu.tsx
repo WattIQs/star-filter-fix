@@ -24,15 +24,16 @@ export function CategoryMenu({ value, onChange, onScan, scanning }: CategoryMenu
       type="button"
       onClick={onScan}
       disabled={scanning || value.length === 0}
+      aria-label={scanning ? "Varrendo área" : "Varrer área"}
       className={cn(
-        "relative h-9 shrink-0 gap-2 rounded-lg border border-primary/30 px-3 text-xs font-semibold shadow-md transition-all duration-200",
+        "group relative h-9 shrink-0 gap-2 overflow-visible rounded-lg border border-primary/30 px-3 text-xs font-semibold shadow-md transition-all duration-200",
         "bg-primary text-primary-foreground hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-lg active:translate-y-0",
         "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-md",
       )}
     >
-      {scanning && <span className="absolute inset-0 rounded-lg bg-primary/20 animate-pulse" aria-hidden="true" />}
+      {scanning && <span className="pointer-events-none absolute -inset-1 rounded-xl border border-primary/40 animate-ping opacity-30" aria-hidden="true" />}
       <span className="relative flex items-center gap-2">
-        {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />}
+        {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-45" />}
         <span>{scanning ? "Varrendo..." : "Varrer área"}</span>
       </span>
     </Button>
