@@ -36,15 +36,12 @@ function toPlaceSuggestion(r: NominatimResult): PlaceSuggestion {
     shortLabel: parts.slice(0, 3).join(", "),
     lat: Number.parseFloat(r.lat),
     lon: Number.parseFloat(r.lon),
-    boundingBox:
-      bb && bb.length >= 4
-        ? {
-            south: Number.parseFloat(bb[0] ?? "0"),
-            north: Number.parseFloat(bb[1] ?? "0"),
-            west: Number.parseFloat(bb[2] ?? "0"),
-            east: Number.parseFloat(bb[3] ?? "0"),
-          }
-        : null,
+    boundingBox: bb && bb.length >= 4 ? {
+      south: Number.parseFloat(bb[0] ?? "0"),
+      north: Number.parseFloat(bb[1] ?? "0"),
+      west: Number.parseFloat(bb[2] ?? "0"),
+      east: Number.parseFloat(bb[3] ?? "0"),
+    } : null,
   };
 }
 
@@ -69,11 +66,7 @@ async function queryPlaces(q: string): Promise<NominatimResult[]> {
   url.searchParams.set("dedupe", "1");
 
   try {
-    const response = await fetchWithTimeout(
-      url.toString(),
-      { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
-      4500,
-    );
+    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json", "User-Agent": OSM_UA } }, 4500);
     if (!response.ok) return [];
     return (await response.json()) as NominatimResult[];
   } catch {
@@ -114,9 +107,43 @@ function mergeOverpassResults(responses: Array<OverpassElement[] | null>): Overp
 
 async function queryOverpass(query: string): Promise<OverpassElement[] | null> {
   const responses = await Promise.all(OVERPASS_MIRRORS.map((mirror) => queryOverpassMirror(mirror, query)));
-  const successful = responses.some((result) => Array.isArray(result));
-  if (!successful) return null;
+  if (!responses.some((result) => Array.isArray(result))) return null;
   return mergeOverpassResults(responses);
+}
+
+function splitArea(area: BoundingBox): BoundingBox[] {
+  const south = Math.min(area.south, area.north);
+  const north = Math.max(area.south, area.north);
+  const west = Math.min(area.west, area.east);
+  const east = Math.max(area.west, area.east);
+  const height = north - south;
+  const width = east - west;
+  const maxSpan = 0.10;
+  const rows = Math.max(1, Math.min(4, Math.ceil(height / maxSpan)));
+  const cols = Math.max(1, Math.min(4, Math.ceil(width / maxSpan)));
+  const tileHeight = height / rows || maxSpan;
+  const tileWidth = width / cols || maxSpan;
+  const tiles: BoundingBox[] = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      tiles.push({
+        south: south + row * tileHeight,
+        north: row === rows - 1 ? north : south + (row + 1) * tileHeight,
+        west: west + col * tileWidth,
+        east: col === cols - 1 ? east : west + (col + 1) * tileWidth,
+      });
+    }
+  }
+
+  return tiles;
+}
+
+async function queryArea(area: BoundingBox, categories: CategoryKey[]): Promise<OverpassElement[] | null> {
+  const tiles = splitArea(area);
+  const tileResults = await Promise.all(tiles.map((tile) => queryOverpass(buildOverpassQuery(tile, categories, false))));
+  if (tileResults.every((result) => result === null)) return null;
+  return mergeOverpassResults(tileResults);
 }
 
 export const searchPlacesServer = createServerFn({ method: "POST" })
@@ -124,7 +151,6 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
     const q = data.q.trim().replace(/\s+/g, " ");
     if (q.length < 2) return [];
-
     const primary = await queryPlaces(q);
     const fallback = primary.length > 0 ? [] : await queryPlaces(`${q}, Brasil`);
     return dedupePlaces([...primary, ...fallback])
@@ -136,24 +162,16 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
 export const searchOverpassServer = createServerFn({ method: "POST" })
   .validator((data: { area: BoundingBox; categories: CategoryKey[]; signalZeroOnly?: boolean }) => data)
   .handler(async ({ data }): Promise<{ elements: OverpassElement[] }> => {
-    const primary = await queryOverpass(buildOverpassQuery(data.area, data.categories, data.signalZeroOnly === true));
-    if (primary === null) {
-      const centerLat = (data.area.south + data.area.north) / 2;
-      const centerLon = (data.area.west + data.area.east) / 2;
-      const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 8000));
-      if (fallback === null) {
-        throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
-      }
-      return { elements: fallback };
-    }
-
-    if (primary.length > 0) return { elements: primary };
+    const primary = await queryArea(data.area, data.categories);
+    if (primary !== null && primary.length > 0) return { elements: primary };
 
     const centerLat = (data.area.south + data.area.north) / 2;
     const centerLon = (data.area.west + data.area.east) / 2;
     const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 8000));
-    if (fallback === null) return { elements: [] };
-    return { elements: fallback };
+    if (fallback === null && primary === null) {
+      throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
+    }
+    return { elements: mergeOverpassResults([primary ?? [], fallback ?? []]) };
   });
 
 export const verifyLeadsServer = createServerFn({ method: "POST" })
@@ -179,6 +197,5 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
     }
 
     const verified = await verifyLeads(data.leads);
-    const healthy = verified.length === 0 || verified.every((lead) => lead.verification.checked);
-    return { leads: verified, external: true, healthy };
+    return { leads: verified, external: true, healthy: verified.every((lead) => lead.verification.checked) };
   });
