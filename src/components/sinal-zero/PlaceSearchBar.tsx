@@ -25,7 +25,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
   useEffect(() => {
     if (pickedLabelRef.current !== null && value === pickedLabelRef.current) return;
     const term = value.trim();
-    if (term.length < 3) {
+    if (term.length < 2) {
       setSuggestions([]);
       setOpen(false);
       setLoading(false);
@@ -53,7 +53,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
         .finally(() => {
           if (!cancelled && requestId === requestIdRef.current) setLoading(false);
         });
-    }, 300);
+    }, 220);
 
     return () => {
       cancelled = true;
