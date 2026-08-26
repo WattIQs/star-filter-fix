@@ -85,17 +85,13 @@ function dedupePlaces(results: NominatimResult[]): NominatimResult[] {
   });
 }
 
-function looksLikeCitySearch(q: string): boolean {
-  return !/\d/.test(q) && !/(rua|avenida|av\.?|rodovia|estrada|praça|praca|travessa|alameda|bairro|cep)/i.test(q);
-}
-
 function cityName(result: NominatimResult): string {
   return normalizeText(
-    result.name ??
-      result.address?.city ??
+    result.address?.city ??
       result.address?.town ??
       result.address?.municipality ??
       result.address?.village ??
+      result.name ??
       "",
   );
 }
@@ -120,7 +116,7 @@ function matchScore(query: string, result: NominatimResult): number {
   return queryTokens.length > 0 ? Math.round((matched / queryTokens.length) * 50) : 0;
 }
 
-async function queryPlaces(q: string, cityOnly = false): Promise<NominatimResult[]> {
+async function queryPlaces(q: string): Promise<NominatimResult[]> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("limit", "10");
@@ -130,13 +126,12 @@ async function queryPlaces(q: string, cityOnly = false): Promise<NominatimResult
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("namedetails", "1");
   url.searchParams.set("dedupe", "1");
-  if (cityOnly) url.searchParams.set("featuretype", "city");
 
   try {
     const response = await fetchWithTimeout(
       url.toString(),
       { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
-      4500,
+      8000,
     );
     if (!response.ok) return [];
     return (await response.json()) as NominatimResult[];
@@ -146,16 +141,16 @@ async function queryPlaces(q: string, cityOnly = false): Promise<NominatimResult
 }
 
 function rankPlaceResults(q: string, results: NominatimResult[]): NominatimResult[] {
-  const deduped = dedupePlaces(results);
+  const deduped = dedupePlaces(results).filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)));
   return deduped
     .map((item, index) => ({ item, score: matchScore(q, item), index }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .filter(({ score }, index, all) => {
       if (index === 0) return true;
       const bestScore = all[0]?.score ?? 0;
-      if (bestScore >= 90) return score >= 70;
-      if (bestScore >= 75) return score >= 55;
-      return score >= 35;
+      if (bestScore >= 90) return score >= 55;
+      if (bestScore >= 75) return score >= 45;
+      return score >= 25;
     })
     .map(({ item }) => item)
     .slice(0, 8);
@@ -239,15 +234,12 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
   .validator((data: { q: string }) => data)
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
     const q = data.q.trim().replace(/\s+/g, " ");
-    if (q.length < 3) return [];
+    if (q.length < 2) return [];
 
-    const cityLike = looksLikeCitySearch(q);
-    const exactFirst = await queryPlaces(q, cityLike);
-    const primary = rankPlaceResults(q, exactFirst);
+    const primary = rankPlaceResults(q, await queryPlaces(q));
+    if (primary.length > 0) return primary.map(toPlaceSuggestion);
 
-    if (primary.length > 0 && primary[0]) return primary.map(toPlaceSuggestion);
-
-    const fallback = await queryPlaces(`${q}, Brasil`, false);
+    const fallback = await queryPlaces(`${q}, Brasil`);
     return rankPlaceResults(q, fallback).map(toPlaceSuggestion);
   });
 
