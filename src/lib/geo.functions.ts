@@ -74,8 +74,12 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
       };
     }
 
-    const candidates = data.leads.slice(0, 40);
+    // Limite deliberado: qualidade e tempo são melhores com uma primeira
+    // rodada menor; o usuário pode executar outra varredura em uma área diferente.
+    const candidates = data.leads.slice(0, 24);
     const verified = await verifyLeads(candidates);
     const healthy = verified.some((lead) => lead.verification.checked);
-    return { leads: verified, external: healthy, healthy };
+    // Credenciais válidas significam que a integração web está disponível.
+    // "healthy" continua indicando se houve pelo menos uma verificação concluída.
+    return { leads: verified, external: true, healthy };
   });
