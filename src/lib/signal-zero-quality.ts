@@ -8,7 +8,6 @@ const DIRECT_DIGITAL_KEYS = [
   "youtube", "contact:youtube",
   "linkedin", "contact:linkedin",
   "twitter", "contact:twitter", "x", "contact:x",
-  "email", "contact:email",
 ];
 
 const CHAIN_PATTERNS = [
@@ -49,21 +48,17 @@ function hasClearlyDigitalTag(tags: Record<string, string>): boolean {
 }
 
 /**
- * Sinal Zero é determinado somente por evidência comercial real.
- * Wikidata/Wikipedia/brand/operator não são considerados presença digital.
+ * Sinal Zero é um candidato que não possui evidência direta de site ou rede
+ * social no cadastro local. E-mail, telefone e outros dados de contato não
+ * são tratados como prova de presença digital comercial.
  */
 export function isStrictSignalZero(place: Establishment): boolean {
   const tags = place.tags ?? {};
-
   if (hasClearlyDigitalTag(tags)) return false;
   if (looksLikeKnownChain(tags)) return false;
-
-  // Não usamos mais place.level como gate, porque versões anteriores do
-  // classificador podiam elevar o nível por metadados não comerciais.
   return true;
 }
 
-/** Score local antes da verificação externa. Quanto maior, mais promissor. */
 export function getSignalZeroScore(place: Establishment): number {
   const tags = place.tags ?? {};
   let score = 100;
