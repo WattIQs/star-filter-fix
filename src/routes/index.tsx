@@ -58,10 +58,6 @@ function hasContact(lead: Establishment): boolean {
   return Boolean(lead.contact.whatsappValid || lead.contact.instagramUrl);
 }
 
-function hasWebsite(lead: Establishment): boolean {
-  return Boolean(lead.signals.website || lead.contact.websiteUrl);
-}
-
 function Index() {
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
   const [ratingFilters, setRatingFilters] = useState<string[]>([]);
@@ -86,7 +82,7 @@ function Index() {
 
   const filterByCategory = (leads: Establishment[]) => leads.filter((lead) => categoryMatches(lead, categories));
 
-  const verifyPresence = async (leads: Establishment[], scanId: number, mode: VerificationMode) => {
+  const verifyPresence = async (leads: Establishment[], scanId: number, signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
     if (leads.length === 0) {
       if (scanId === scanIdRef.current) {
         setResults([]);
@@ -107,14 +103,9 @@ function Index() {
 
       setVerificationMode("external");
       const finalLeads = verified.leads.filter((lead) => {
-        // These filters are based on the actual verification flags, not on the
-        // generic verification status. A lead with a website can be "rejected"
-        // by the generic classifier and still be a valid result for "no website"
-        // only when foundWebsite is false. Likewise, Sinal Zero is defined by the
-        // absence of digital presence, not by the generic status string.
         if (!lead.verification.checked) return false;
-        const signalMatch = !signalZeroOnly || !lead.verification.foundDigitalPresence;
-        const websiteMatch = !noWebsiteOnly || !lead.verification.foundWebsite;
+        const signalMatch = !signalZero || !lead.verification.foundDigitalPresence;
+        const websiteMatch = !noWebsite || !lead.verification.foundWebsite;
         return signalMatch && websiteMatch;
       });
       setResults(finalLeads);
@@ -141,9 +132,8 @@ function Index() {
     }
 
     setScanning(true);
-    const candidates = noWebsite ? categoryResults.filter((lead) => !hasWebsite(lead)) : categoryResults;
     const mode: VerificationMode = signalZero && noWebsite ? "both" : signalZero ? "signal-zero" : "no-website";
-    void verifyPresence(candidates, scanId, mode).finally(() => {
+    void verifyPresence(categoryResults, scanId, signalZero, noWebsite, mode).finally(() => {
       if (scanId === scanIdRef.current) setScanning(false);
     });
   };
