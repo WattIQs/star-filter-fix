@@ -91,7 +91,7 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
   const activeCount = ratingFilters.length + Number(priceFilter !== "any") + Number(signalZeroOnly) + Number(contactOnly) + Number(noWebsiteOnly);
   const ratingSummary = ratingFilters.length === 0 ? "Qualquer classificação" : ratingFilters.map((value) => RATING_OPTIONS.find((option) => option.value === value)?.label ?? value).join(", ");
   const searchCount = Number(signalZeroOnly) + Number(contactOnly) + Number(noWebsiteOnly);
-  const searchSummary = searchCount === 0 ? "Qualquer estabelecimento" : `${searchCount} opção${searchCount > 1 ? "s" : ""} selecionada${searchCount > 1 ? "s" : ""}`;
+  const searchSummary = searchCount === 0 ? "Sem restrições de presença" : `${searchCount} filtro${searchCount > 1 ? "s" : ""} ativo${searchCount > 1 ? "s" : ""}`;
   const priceSummary = PRICE_OPTIONS.find((option) => option.value === priceFilter)?.label ?? "Qualquer preço";
   const sortSummary = SORT_LABELS[sortKey] ?? SORT_LABELS.relevance;
 
@@ -114,24 +114,20 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} collisionPadding={12} className="z-[5000] max-h-[min(78vh,680px)] w-[min(92vw,360px)] overflow-y-auto border-border bg-card p-3 shadow-2xl sm:p-4">
+      <PopoverContent align="end" sideOffset={8} collisionPadding={12} className="z-[5000] max-h-[min(82vh,700px)] w-[min(94vw,380px)] overflow-y-auto border-border bg-card p-3 shadow-2xl sm:p-4">
         <div className="sticky top-0 z-10 mb-3 flex items-start justify-between gap-3 border-b border-border bg-card pb-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Filtro de busca</h3>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">Combine opções sem sair deste menu.</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Os filtros são cumulativos: quanto mais você marcar, mais restrito fica o resultado.</p>
           </div>
-          {activeCount > 0 && (
-            <button type="button" onClick={clearFilters} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10">
-              <X className="h-3 w-3" />Limpar
-            </button>
-          )}
+          {activeCount > 0 && <button type="button" onClick={clearFilters} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10"><X className="h-3 w-3" />Limpar</button>}
         </div>
 
         <div className="space-y-2.5">
           <HiddenFilterGroup title="Busca e presença" summary={searchSummary} open={searchGroupOpen} onToggle={() => setSearchGroupOpen((open) => !open)}>
-            <FilterToggle checked={signalZeroOnly} onChange={onSignalZeroOnlyChange} title="Somente Sinal Zero" description="Confirma ausência de presença digital antes de exibir o lead." />
-            <FilterToggle checked={contactOnly} onChange={onContactOnlyChange} title="Contato: WhatsApp ou Instagram" description="Mantém negócios com contato identificado." />
-            <FilterToggle checked={noWebsiteOnly} onChange={onNoWebsiteOnlyChange} title="Não possui site" description="Confirma na web que não foi encontrado site próprio." />
+            <FilterToggle checked={signalZeroOnly} onChange={onSignalZeroOnlyChange} title="Somente Sinal Zero" description="Exige verificação externa sem presença digital identificada." />
+            <FilterToggle checked={contactOnly} onChange={onContactOnlyChange} title="Tem WhatsApp ou Instagram" description="Mostra apenas negócios com um desses canais identificados." />
+            <FilterToggle checked={noWebsiteOnly} onChange={onNoWebsiteOnlyChange} title="Não possui site" description="Mantém negócios sem site próprio confirmado pela verificação web." />
           </HiddenFilterGroup>
 
           <HiddenFilterGroup title="Classificação" summary={ratingSummary} open={ratingGroupOpen} onToggle={() => setRatingGroupOpen((open) => !open)}>
@@ -142,6 +138,7 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
                   <label key={option.value} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2.5 text-xs transition-colors ${active ? "border-primary/30 bg-primary/5" : "border-border/60 bg-background hover:bg-muted/40"}`}>
                     <input type="checkbox" checked={active} onChange={() => onRatingFiltersChange(active ? ratingFilters.filter((item) => item !== option.value) : [...ratingFilters, option.value])} className="h-4 w-4 cursor-pointer accent-primary" />
                     <span>{option.label}</span>
+                    {active && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
                   </label>
                 );
               })}
@@ -151,6 +148,7 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
 
           <HiddenFilterGroup title="Preço" summary={priceSummary} open={priceGroupOpen} onToggle={() => setPriceGroupOpen((open) => !open)}>
             <SelectOptionList value={priceFilter} onChange={onPriceFilterChange} options={PRICE_OPTIONS} groupName="price" />
+            {priceFilter !== "any" && <p className="text-[10px] text-muted-foreground">Só entra no resultado quando o preço foi identificado na fonte de dados. Não estimamos preço.</p>}
           </HiddenFilterGroup>
 
           <HiddenFilterGroup title="Ordenar por" summary={sortSummary} open={sortGroupOpen} onToggle={() => setSortGroupOpen((open) => !open)}>
