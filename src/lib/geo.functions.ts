@@ -100,12 +100,23 @@ async function queryOverpassMirror(mirror: string, query: string): Promise<Overp
   }
 }
 
+function mergeOverpassResults(responses: Array<OverpassElement[] | null>): OverpassElement[] {
+  const byId = new Map<string, OverpassElement>();
+  for (const response of responses) {
+    if (!response) continue;
+    for (const element of response) {
+      const key = `${element.type}-${element.id}`;
+      if (!byId.has(key)) byId.set(key, element);
+    }
+  }
+  return [...byId.values()];
+}
+
 async function queryOverpass(query: string): Promise<OverpassElement[] | null> {
   const responses = await Promise.all(OVERPASS_MIRRORS.map((mirror) => queryOverpassMirror(mirror, query)));
-  const withResults = responses.find((result): result is OverpassElement[] => Array.isArray(result) && result.length > 0);
-  if (withResults) return withResults;
-  const successfulEmpty = responses.find((result): result is OverpassElement[] => Array.isArray(result));
-  return successfulEmpty ?? null;
+  const successful = responses.some((result) => Array.isArray(result));
+  if (!successful) return null;
+  return mergeOverpassResults(responses);
 }
 
 export const searchPlacesServer = createServerFn({ method: "POST" })
@@ -114,7 +125,6 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
     const q = data.q.trim().replace(/\s+/g, " ");
     if (q.length < 2) return [];
 
-    // One request first; only fall back when the main geocoder query is empty.
     const primary = await queryPlaces(q);
     const fallback = primary.length > 0 ? [] : await queryPlaces(`${q}, Brasil`);
     return dedupePlaces([...primary, ...fallback])
@@ -128,10 +138,9 @@ export const searchOverpassServer = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ elements: OverpassElement[] }> => {
     const primary = await queryOverpass(buildOverpassQuery(data.area, data.categories, data.signalZeroOnly === true));
     if (primary === null) {
-      // A network/API failure is not a valid empty result. Try the point search once.
       const centerLat = (data.area.south + data.area.north) / 2;
       const centerLon = (data.area.west + data.area.east) / 2;
-      const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 5000));
+      const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 8000));
       if (fallback === null) {
         throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
       }
@@ -142,7 +151,7 @@ export const searchOverpassServer = createServerFn({ method: "POST" })
 
     const centerLat = (data.area.south + data.area.north) / 2;
     const centerLon = (data.area.west + data.area.east) / 2;
-    const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 5000));
+    const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 8000));
     if (fallback === null) return { elements: [] };
     return { elements: fallback };
   });
@@ -157,7 +166,7 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
           verification: {
             status: "unverified" as const,
             score: 0,
-            reasons: ["Busca externa não configurada. O filtro de ausência de site precisa consultar a web antes de confirmar o lead."],
+            reasons: ["Busca externa não configurada. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX para validar presença digital."],
             checked: false,
             foundDigitalPresence: false,
             foundWebsite: false,
@@ -169,8 +178,7 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
       };
     }
 
-    const candidates = data.leads.slice(0, 24);
-    const verified = await verifyLeads(candidates);
-    const healthy = verified.every((lead) => lead.verification.checked);
+    const verified = await verifyLeads(data.leads);
+    const healthy = verified.length === 0 || verified.every((lead) => lead.verification.checked);
     return { leads: verified, external: true, healthy };
   });
