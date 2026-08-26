@@ -226,7 +226,9 @@ export function processOverpassResults(
     const center = element.center ?? (element.lat !== undefined && element.lon !== undefined ? { lat: element.lat, lon: element.lon } : null);
     if (!center) continue;
     const resolved = resolveCategory(tags);
-    if (resolved.key && !categorySet.has(resolved.key)) continue;
+    // Empty category selection means "all supported businesses". Only apply
+    // the category gate when the user actually selected categories.
+    if (categorySet.size > 0 && resolved.key && !categorySet.has(resolved.key)) continue;
     const id = `${element.type}-${element.id}`;
     if (seen.has(id)) continue;
     seen.add(id);
