@@ -29,7 +29,8 @@ function normalize(value: string): string {
 }
 
 function tokens(value: string): string[] {
-  return normalize(value).split(" ").filter((token) => token.length >= 3);
+  const ignored = new Set(["ltda", "me", "epp", "eireli", "comercio", "comercio", "empresa", "de", "da", "do", "das", "dos", "e"]);
+  return normalize(value).split(" ").filter((token) => token.length >= 3 && !ignored.has(token));
 }
 
 function similarity(name: string, text: string): number {
@@ -58,17 +59,12 @@ function host(link: string): string {
 
 function isSocial(link: string): boolean {
   const value = host(link);
-  return ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "linkedin.com", "x.com", "twitter.com"].some(
-    (domain) => value === domain || value.endsWith(`.${domain}`),
-  );
+  return ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "linkedin.com", "x.com", "twitter.com"].some((domain) => value === domain || value.endsWith(`.${domain}`));
 }
 
 function isDirectory(link: string): boolean {
   const value = host(link);
-  return [
-    "tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com",
-    "google.com", "google.com.br", "maps.google.com", "wikipedia.org", "wikidata.org", "openstreetmap.org",
-  ].some((domain) => value === domain || value.endsWith(`.${domain}`));
+  return ["tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com", "google.com", "google.com.br", "maps.google.com", "wikipedia.org", "wikidata.org", "openstreetmap.org"].some((domain) => value === domain || value.endsWith(`.${domain}`));
 }
 
 function isLikelyOwnWebsite(link: string): boolean {
@@ -85,66 +81,55 @@ async function googleSearch(query: string): Promise<SearchResponse> {
   url.searchParams.set("key", key);
   url.searchParams.set("cx", cx);
   url.searchParams.set("q", query);
-  url.searchParams.set("num", "6");
+  url.searchParams.set("num", "8");
   url.searchParams.set("hl", "pt-BR");
   url.searchParams.set("gl", "br");
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 4000);
-      if (response.ok) {
-        const data = (await response.json()) as { items?: SearchItem[] };
-        return { items: data.items ?? [], ok: true };
-      }
-      if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        continue;
-      }
-      return { items: [], ok: false };
-    } catch {
-      if (attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        continue;
-      }
-      return { items: [], ok: false };
-    }
+  try {
+    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 5000);
+    if (!response.ok) return { items: [], ok: false };
+    const data = (await response.json()) as { items?: SearchItem[] };
+    return { items: data.items ?? [], ok: true };
+  } catch {
+    return { items: [], ok: false };
   }
-  return { items: [], ok: false };
 }
 
 async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchItem[]; successfulQueries: number }> {
-  const cleanName = lead.name.replace(/"/g, "").trim();
+  const cleanName = lead.name.replace(/["']/g, " ").replace(/\s+/g, " ").trim();
   const location = [lead.details.neighbourhood, lead.details.city, lead.details.state].filter(Boolean).join(" ");
   const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
   const phone = lead.contact.phoneDigits ?? "";
+  const email = lead.contact.email ?? "";
 
-  const socialQuery = `"${cleanName}" "${location}" (site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com)`;
-  const websiteQuery = `"${cleanName}" "${location}" "${address}" -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:linkedin.com -site:x.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br -site:rappi.com.br -site:ubereats.com`;
-  const identityQuery = phone ? `"${phone}" "${cleanName}"` : `"${cleanName}" "${location}" "${address}" official`;
+  const identity = [`"${cleanName}"`, location ? `"${location}"` : "", address ? `"${address}"` : ""].filter(Boolean).join(" ");
+  const socialQuery = `${identity} (site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com OR site:linkedin.com)`;
+  const websiteQuery = `${identity} -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:linkedin.com -site:x.com -site:twitter.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br -site:rappi.com.br -site:ubereats.com`;
+  const contactQuery = phone ? `"${phone}" "${cleanName}"` : email ? `"${email}"` : `"${cleanName}" "${location}"`;
 
-  const [social, website] = await Promise.all([googleSearch(socialQuery), googleSearch(websiteQuery)]);
-  const firstItems = [...social.items, ...website.items];
-  const successfulQueries = Number(social.ok) + Number(website.ok);
-
-  const locationText = normalize(location);
-  const hasStrongWebsite = firstItems.some((item) => {
-    const link = item.link ?? "";
-    if (!isLikelyOwnWebsite(link)) return false;
-    const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
-    const nameMatch = Math.max(similarity(lead.name, evidence), similarity(lead.name, pathIdentity(link)));
-    const locationMatch = locationText ? similarity(location, evidence) : 0;
-    return nameMatch >= 0.75 && (locationMatch >= 0.25 || similarity(lead.name, pathIdentity(link)) >= 0.75);
-  });
-
-  if (hasStrongWebsite || successfulQueries < 2) return { items: firstItems, successfulQueries };
-  const identity = await googleSearch(identityQuery);
-  return { items: [...firstItems, ...identity.items], successfulQueries: successfulQueries + Number(identity.ok) };
+  const [social, website, contact] = await Promise.all([googleSearch(socialQuery), googleSearch(websiteQuery), googleSearch(contactQuery)]);
+  return {
+    items: [...social.items, ...website.items, ...contact.items],
+    successfulQueries: Number(social.ok) + Number(website.ok) + Number(contact.ok),
+  };
 }
 
 function contactConfidence(lead: Establishment): "high" | "medium" | "low" {
-  if (lead.contact.whatsappValid) return "high";
-  if (lead.contact.phoneDigits) return "medium";
+  if (lead.contact.whatsappValid || lead.contact.email) return "high";
+  if (lead.contact.phoneDigits || lead.contact.instagramUrl || lead.contact.facebookUrl) return "medium";
   return "low";
+}
+
+function evidenceScore(lead: Establishment, item: SearchItem): { identity: number; context: number } {
+  const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
+  const urlEvidence = pathIdentity(item.link ?? "");
+  const locationText = [lead.details.neighbourhood, lead.details.city, lead.details.state].filter(Boolean).join(" ");
+  const identity = Math.max(similarity(lead.name, evidence), similarity(lead.name, urlEvidence));
+  const context = Math.max(
+    locationText ? similarity(locationText, evidence) : 0,
+    lead.contact.phoneDigits && normalize(evidence).includes(normalize(lead.contact.phoneDigits)) ? 1 : 0,
+    lead.contact.email && normalize(evidence).includes(normalize(lead.contact.email)) ? 1 : 0,
+  );
+  return { identity, context };
 }
 
 export async function verifyLead(lead: Establishment): Promise<LeadVerification> {
@@ -160,48 +145,65 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   };
   if (!externalVerificationConfigured()) return empty;
 
+  const existingWebsite = Boolean(lead.signals.website || lead.contact.websiteUrl);
+  const existingSocial = Boolean(lead.signals.instagram || lead.signals.facebook || lead.contact.instagramUrl || lead.contact.facebookUrl);
+  const existingContact = Boolean(lead.contact.phoneDigits || lead.contact.email || lead.contact.whatsappValid);
   const search = await searchLeadPresence(lead);
-  if (search.successfulQueries < 1) return { ...empty, reasons: ["A busca web não respondeu. O lead não foi classificado para evitar falso positivo."] };
+  if (search.successfulQueries === 0) return { ...empty, reasons: ["A busca web não respondeu. O lead não foi classificado para evitar falso positivo."] };
 
+  let foundWebsite = existingWebsite;
+  let foundDigitalPresence = existingWebsite || existingSocial;
   const reasons: string[] = [];
-  let foundDigitalPresence = Boolean(lead.signals.website || lead.signals.instagram || lead.signals.facebook || lead.contact.websiteUrl || lead.contact.instagramUrl || lead.contact.facebookUrl);
-  let foundWebsite = Boolean(lead.signals.website || lead.contact.websiteUrl);
+
+  if (existingWebsite) reasons.push("O cadastro já informa um site próprio.");
+  if (existingSocial) reasons.push("O cadastro já informa uma rede social.");
 
   for (const item of search.items) {
     const link = item.link ?? "";
     if (!link) continue;
-    const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
-    const urlEvidence = pathIdentity(link);
-    const nameMatch = similarity(lead.name, evidence);
-    const urlMatch = similarity(lead.name, urlEvidence);
-    const locationText = [lead.details.neighbourhood, lead.details.city, lead.details.state].filter(Boolean).join(" ");
-    const locationMatch = locationText ? similarity(locationText, evidence) : 0;
-    const identityStrong = nameMatch >= 0.75 || urlMatch >= 0.75;
-    const contextual = locationMatch >= 0.25 || (lead.contact.phoneDigits ? normalize(evidence).includes(normalize(lead.contact.phoneDigits)) : false);
+    const { identity, context } = evidenceScore(lead, item);
+    const identityStrong = identity >= 0.75 || (tokens(lead.name).length <= 2 && identity >= 1);
+    const contextual = context >= 0.25;
 
     if (isSocial(link) && identityStrong && contextual) {
       foundDigitalPresence = true;
-      reasons.push("Presença social encontrada com identificação consistente do estabelecimento.");
+      reasons.push("Presença social encontrada com correspondência de nome e contexto.");
       continue;
     }
     if (isLikelyOwnWebsite(link) && identityStrong && contextual) {
       foundDigitalPresence = true;
       foundWebsite = true;
-      reasons.push("Site próprio encontrado com identificação consistente do estabelecimento.");
-      break;
+      reasons.push("Site próprio encontrado com correspondência de nome e contexto.");
+      continue;
     }
   }
 
-  if (foundWebsite) return { status: "rejected", score: 0, reasons: [...reasons, "O estabelecimento possui site próprio."], checked: true, foundDigitalPresence: true, foundWebsite: true, contactConfidence: confidence };
-  if (foundDigitalPresence) return { status: "verified", score: 100, reasons: [...reasons, "Foi encontrada presença digital do estabelecimento."], checked: true, foundDigitalPresence: true, foundWebsite: false, contactConfidence: confidence };
+  if (foundWebsite) {
+    return { status: "rejected", score: 0, reasons: [...new Set([...reasons, "O estabelecimento possui site próprio."])], checked: true, foundDigitalPresence: true, foundWebsite: true, contactConfidence: confidence };
+  }
+  if (foundDigitalPresence) {
+    return { status: "verified", score: 100, reasons: [...new Set([...reasons, "Foi encontrada presença digital do estabelecimento."])], checked: true, foundDigitalPresence: true, foundWebsite: false, contactConfidence: confidence };
+  }
 
-  reasons.push(search.items.length === 0 ? "Nenhuma presença digital correspondente foi encontrada nas consultas externas." : "As consultas externas não encontraram presença digital com identificação suficientemente forte.");
-  return { status: "verified", score: 100, reasons, checked: true, foundDigitalPresence: false, foundWebsite: false, contactConfidence: confidence };
+  const noEvidenceReason = search.items.length === 0
+    ? "Nenhuma presença digital correspondente foi encontrada nas consultas externas."
+    : existingContact
+      ? "As consultas externas não encontraram site ou rede social com identificação suficientemente forte; contatos existentes não contam como presença digital."
+      : "As consultas externas não encontraram site ou rede social com identificação suficientemente forte.";
+  return {
+    status: "verified",
+    score: 100,
+    reasons: [...new Set([...reasons, noEvidenceReason])],
+    checked: true,
+    foundDigitalPresence: false,
+    foundWebsite: false,
+    contactConfidence: confidence,
+  };
 }
 
 export async function verifyLeads(leads: Establishment[]): Promise<(Establishment & { verification: LeadVerification })[]> {
   const output: (Establishment & { verification: LeadVerification })[] = [];
-  const concurrency = 4;
+  const concurrency = 5;
   for (let i = 0; i < leads.length; i += concurrency) {
     const batch = leads.slice(i, i + concurrency);
     const verified = await Promise.all(batch.map(async (lead) => ({ ...lead, verification: await verifyLead(lead) })));
