@@ -15,13 +15,6 @@ function getTag(tags: Record<string, string>, keys: string[]): string | null {
   return null;
 }
 
-const DIGITAL_TAG_KEYS = [
-  "website", "contact:website", "url", "contact:url", "instagram", "contact:instagram",
-  "facebook", "contact:facebook", "twitter", "contact:twitter", "x", "contact:x",
-  "tiktok", "contact:tiktok", "youtube", "contact:youtube", "linkedin", "contact:linkedin",
-  "email", "contact:email",
-];
-
 const WELL_KNOWN_BRANDS = [
   "mcdonalds", "mcdonald's", "burger king", "subway", "starbucks", "kfc", "pizza hut",
   "domino's", "dominos", "habib's", "habibs", "giraffas", "spoleto", "madero", "outback",
@@ -43,12 +36,7 @@ function hasTag(tags: Record<string, string>, keys: string[]): boolean {
 }
 
 function hasWellKnownBrand(tags: Record<string, string>): boolean {
-  const haystack = normalizeText([
-    tags["name"],
-    tags["brand"],
-    tags["operator"],
-    tags["official_name"],
-  ].filter(Boolean).join(" "));
+  const haystack = normalizeText([tags["name"], tags["brand"], tags["operator"], tags["official_name"]].filter(Boolean).join(" "));
   if (!haystack) return false;
   return WELL_KNOWN_BRANDS.some((brand) => {
     const normalizedBrand = normalizeText(brand);
@@ -60,14 +48,10 @@ export function classifySignals(tags: Record<string, string>) {
   const website = hasTag(tags, ["website", "contact:website", "url", "contact:url"]);
   const instagram = hasTag(tags, ["contact:instagram", "instagram"]);
   const facebook = hasTag(tags, ["contact:facebook", "facebook"]);
-  const tiktok = hasTag(tags, ["contact:tiktok", "tiktok"]);
-  const youtube = hasTag(tags, ["contact:youtube", "youtube"]);
-  const linkedin = hasTag(tags, ["contact:linkedin", "linkedin"]);
-  const twitter = hasTag(tags, ["contact:twitter", "twitter", "contact:x", "x"]);
   const email = hasTag(tags, ["email", "contact:email"]);
   const phone = hasTag(tags, ["phone", "contact:phone", "contact:mobile", "mobile", "contact:whatsapp"]);
 
-  const channels = [website, instagram, facebook, tiktok, youtube, linkedin, twitter, email];
+  const channels = [website, instagram, facebook, email];
   const signalCount = channels.filter(Boolean).length;
   const wellKnownBrand = hasWellKnownBrand(tags);
 
@@ -92,9 +76,9 @@ function normalizeUrl(value: string | null): string | null {
 function instagramFromValue(value: string | null): { handle: string | null; url: string | null } {
   if (!value) return { handle: null, url: null };
   const cleaned = value.trim();
-  const match = cleaned.match(/instagram\.com\/([A-Za-z0-9_.]+)/i);
-  const raw = match?.[1] ?? cleaned.replace(/^@/, "").split(/[/?\s]/)[0] ?? "";
-  const handle = raw.replace(/[^A-Za-z0-9_.]/g, "");
+  const match = cleaned.match(/(?:instagram\.com\/|@)([A-Za-z0-9_.]+)/i);
+  if (!match?.[1]) return { handle: null, url: null };
+  const handle = match[1].replace(/[^A-Za-z0-9_.]/g, "");
   if (!handle || handle.length < 2) return { handle: null, url: null };
   return { handle: `@${handle}`, url: `https://instagram.com/${handle}` };
 }
@@ -107,24 +91,32 @@ export function toWhatsappNumber(raw: string | null): string | null {
   digits = digits.replace(/^0+/, "");
   const hasCountryCode = /^\s*\+/.test(first) || first.trim().startsWith("00");
   if (!hasCountryCode && (digits.length === 10 || digits.length === 11)) digits = `55${digits}`;
+
   if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
     const local = digits.slice(2);
     const ddd = Number.parseInt(local.slice(0, 2), 10);
     if (ddd < 11 || ddd > 99) return null;
-    const firstLocal = local.charAt(2);
-    if (local.length === 9 && firstLocal !== "9") return null;
-    if (local.length === 8 && !"2345".includes(firstLocal)) return null;
-    return digits;
+    const subscriber = local.slice(2);
+    if (subscriber.length === 9 && subscriber.startsWith("9")) return digits;
+    return null;
   }
-  if (digits.length >= 11 && digits.length <= 15) return digits;
-  return null;
+
+  return digits.length >= 11 && digits.length <= 15 ? digits : null;
 }
 
 function buildContact(tags: Record<string, string>): EstablishmentContact {
-  const phoneRaw = getTag(tags, ["contact:whatsapp", "contact:mobile", "mobile", "phone", "contact:phone"]);
+  const phoneRaw = getTag(tags, ["contact:whatsapp", "whatsapp", "contact:mobile", "mobile", "phone", "contact:phone"]);
+  const explicitWhatsapp = getTag(tags, ["contact:whatsapp", "whatsapp"]);
   const phoneDigits = phoneRaw ? phoneRaw.replace(/\D/g, "") : null;
-  const whatsappSource = getTag(tags, ["contact:whatsapp", "whatsapp"]);
-  const whatsappNumber = toWhatsappNumber(whatsappSource);
+
+  // Prefer an explicit WhatsApp tag. When OSM only has a Brazilian mobile
+  // number, expose it as a WhatsApp-capable action because mobile numbers are
+  // the most useful lead contact available in the data source. We do not infer
+  // WhatsApp for landlines.
+  const explicitNumber = toWhatsappNumber(explicitWhatsapp);
+  const inferredNumber = explicitNumber ? null : toWhatsappNumber(phoneRaw);
+  const whatsappNumber = explicitNumber ?? inferredNumber;
+
   const ig = instagramFromValue(getTag(tags, ["contact:instagram", "instagram"]));
   return {
     phoneRaw,
@@ -231,7 +223,7 @@ export function processOverpassResults(
     const center = element.center ?? (element.lat !== undefined && element.lon !== undefined ? { lat: element.lat, lon: element.lon } : null);
     if (!center) continue;
     const resolved = resolveCategory(tags);
-    if (categorySet.size > 0 && resolved.key && !categorySet.has(resolved.key)) continue;
+    if (categorySet.size > 0 && (!resolved.key || !categorySet.has(resolved.key))) continue;
     const id = `${element.type}-${element.id}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -240,11 +232,25 @@ export function processOverpassResults(
     const contact = buildContact(tags);
     const rating = extractRating(tags);
     const priceLevel = extractPriceLevel(tags) ?? inferPriceLevel(tags, resolved.key);
-    const contactable = contact.whatsappValid || contact.instagramUrl !== null || contact.phoneDigits !== null || contact.email !== null;
     results.push({
-      id, osmType: element.type, osmId: element.id, name, category: resolved.label, categoryKey: resolved.key,
-      lat: center.lat, lon: center.lon, address: buildAddress(tags), level: classification.level, signals: classification.signals,
-      signalCount: classification.signalCount, contact, contactable, details, tags, rating, priceLevel,
+      id,
+      osmType: element.type,
+      osmId: element.id,
+      name,
+      category: resolved.label,
+      categoryKey: resolved.key,
+      address: buildAddress(tags),
+      lat: center.lat,
+      lon: center.lon,
+      tags,
+      signals: classification.signals,
+      contact,
+      details,
+      contactable: Boolean(contact.whatsappValid || contact.instagramUrl || contact.phoneDigits),
+      signalCount: classification.signalCount,
+      level: classification.level,
+      rating,
+      priceLevel,
       googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${center.lat},${center.lon}`)}`,
       osmUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
       directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${center.lat},${center.lon}`,
