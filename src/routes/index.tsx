@@ -27,6 +27,8 @@ export const Route = createFileRoute("/")({
 
 const DEFAULT_CATEGORIES: CategoryKey[] = [];
 
+type VerificationMode = "signal-zero" | "no-website" | "both";
+
 function ratingMatchesFilter(rating: number | null, filters: string[]): boolean {
   if (filters.length === 0) return true;
   if (rating === null) return filters.includes("unrated");
@@ -41,14 +43,12 @@ function ratingMatchesFilter(rating: number | null, filters: string[]): boolean 
 function categoryMatches(lead: Establishment, categories: CategoryKey[]): boolean {
   if (categories.length === 0) return true;
   if (lead.categoryKey && categories.includes(lead.categoryKey)) return true;
-
-  return categories.some((category) => {
-    const definition = CATEGORIES[category];
-    return definition.filters.some((filter) => {
+  return categories.some((category) =>
+    CATEGORIES[category].filters.some((filter) => {
       const value = lead.tags[filter.key];
       return Boolean(value && filter.values.includes(value));
-    });
-  });
+    }),
+  );
 }
 
 function MapSkeleton() {
@@ -87,11 +87,11 @@ function Index() {
 
   const filterByCategory = (leads: Establishment[]) => leads.filter((lead) => categoryMatches(lead, categories));
 
-  const verifyPresence = async (leads: Establishment[], scanId: number, mode: "signal-zero" | "no-website") => {
+  const verifyPresence = async (leads: Establishment[], scanId: number, mode: VerificationMode) => {
     if (leads.length === 0) {
       if (scanId === scanIdRef.current) {
         setResults([]);
-        setError(mode === "signal-zero" ? "Nenhum candidato encontrado para verificação Sinal Zero." : "Nenhum candidato disponível para verificar ausência de site.");
+        setError(mode === "signal-zero" ? "Nenhum candidato encontrado para verificação Sinal Zero." : mode === "no-website" ? "Nenhum candidato disponível para verificar ausência de site." : "Nenhum candidato satisfaz os filtros de presença.");
       }
       return;
     }
@@ -108,12 +108,13 @@ function Index() {
 
       setVerificationMode("external");
       const finalLeads = verified.leads.filter((lead) => {
-        if (!lead.verification.checked) return false;
-        if (mode === "signal-zero") return lead.verification.status === "verified" && !lead.verification.foundDigitalPresence;
-        return lead.verification.status === "verified" && !lead.verification.foundWebsite;
+        if (!lead.verification.checked || lead.verification.status !== "verified") return false;
+        const signalMatch = !signalZeroOnly || !lead.verification.foundDigitalPresence;
+        const websiteMatch = !noWebsiteOnly || !lead.verification.foundWebsite;
+        return signalMatch && websiteMatch;
       });
       setResults(finalLeads);
-      setError(finalLeads.length === 0 ? (mode === "signal-zero" ? "Nenhum lead passou pela verificação Sinal Zero." : "Nenhum lead passou pela verificação de ausência de site.") : null);
+      setError(finalLeads.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
     } catch (err) {
       if (scanId !== scanIdRef.current) return;
       setVerificationMode("off");
@@ -137,8 +138,10 @@ function Index() {
 
     setScanning(true);
     const candidates = noWebsite ? categoryResults.filter((lead) => !hasWebsite(lead)) : categoryResults;
-    void verifyPresence(candidates, scanId, signalZero ? "signal-zero" : "no-website")
-      .finally(() => { if (scanId === scanIdRef.current) setScanning(false); });
+    const mode: VerificationMode = signalZero && noWebsite ? "both" : signalZero ? "signal-zero" : "no-website";
+    void verifyPresence(candidates, scanId, mode).finally(() => {
+      if (scanId === scanIdRef.current) setScanning(false);
+    });
   };
 
   const runScan = async (target: PlaceSuggestion) => {
@@ -205,14 +208,12 @@ function Index() {
 
   const handleSignalZeroChange = (enabled: boolean) => {
     setSignalZeroOnly(enabled);
-    if (enabled) setNoWebsiteOnly(false);
-    if (allResults.length > 0) runVerificationForCurrentFilters(enabled, enabled ? false : noWebsiteOnly);
+    if (allResults.length > 0) runVerificationForCurrentFilters(enabled, noWebsiteOnly);
   };
 
   const handleNoWebsiteChange = (enabled: boolean) => {
     setNoWebsiteOnly(enabled);
-    if (enabled) setSignalZeroOnly(false);
-    if (allResults.length > 0) runVerificationForCurrentFilters(enabled ? false : signalZeroOnly, enabled);
+    if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, enabled);
   };
 
   const visibleResults = useMemo(() => {
@@ -223,6 +224,7 @@ function Index() {
       const level = Number.parseInt(priceFilter, 10);
       list = list.filter((lead) => lead.priceLevel === level);
     }
+
     const sorted = [...list];
     sorted.sort((a, b) => {
       switch (sortKey) {
@@ -231,7 +233,11 @@ function Index() {
         case "price_desc": return (b.priceLevel ?? 0) - (a.priceLevel ?? 0);
         case "price_asc": return (a.priceLevel ?? 99) - (b.priceLevel ?? 99);
         case "name_asc": return a.name.localeCompare(b.name, "pt-BR");
-        default: return a.name.localeCompare(b.name, "pt-BR");
+        default:
+          return (a.signalCount - b.signalCount) ||
+            (Number(b.contactable) - Number(a.contactable)) ||
+            ((b.rating ?? -1) - (a.rating ?? -1)) ||
+            a.name.localeCompare(b.name, "pt-BR");
       }
     });
     return sorted;
@@ -261,15 +267,15 @@ function Index() {
         </div>
 
         <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}>
-          <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2><p className="truncate text-[10px] text-muted-foreground">{signalZeroOnly ? "Verificados externamente · sem presença digital encontrada" : noWebsiteOnly ? "Verificados externamente · sem site próprio encontrado" : "Resultados da área selecionada"}</p></div><span className="shrink-0 text-[11px] text-muted-foreground">{visibleResults.length} encontrados</span></div>
+          <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly && noWebsiteOnly ? "Sinal Zero + sem site" : signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2><p className="truncate text-[10px] text-muted-foreground">{signalZeroOnly && noWebsiteOnly ? "Verificados externamente · sem presença digital e sem site" : signalZeroOnly ? "Verificados externamente · sem presença digital encontrada" : noWebsiteOnly ? "Verificados externamente · sem site próprio encontrado" : "Resultados da área selecionada"}</p></div><span className="shrink-0 text-[11px] text-muted-foreground">{visibleResults.length} encontrados</span></div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {scanning ? <div className="space-y-2 px-4 py-3"><div className="flex items-center gap-2 py-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{signalZeroOnly ? "Verificando Sinal Zero..." : noWebsiteOnly ? "Pesquisando negócios sem site..." : "Consultando estabelecimentos..."}</div>{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-md border border-border/50 bg-muted/40" />)}</div> : error ? <p className="px-4 py-6 text-xs text-destructive">{error}</p> : visibleResults.length === 0 ? <p className="px-4 py-6 text-xs text-muted-foreground">Nenhum lead corresponde aos filtros selecionados.</p> : visibleResults.map((item) => <PlaceRow key={item.id} place={item} active={item.id === selectedId} saved={savedLeads.some((l) => l.id === item.id)} onSelect={setSelectedId} onToggleSave={handleToggleSave} />)}
+            {scanning ? <div className="space-y-2 px-4 py-3"><div className="flex items-center gap-2 py-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{signalZeroOnly && noWebsiteOnly ? "Verificando presença e site..." : signalZeroOnly ? "Verificando Sinal Zero..." : noWebsiteOnly ? "Pesquisando negócios sem site..." : "Consultando estabelecimentos..."}</div>{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-md border border-border/50 bg-muted/40" />)}</div> : error ? <p className="px-4 py-6 text-xs text-destructive">{error}</p> : visibleResults.length === 0 ? <p className="px-4 py-6 text-xs text-muted-foreground">Nenhum lead corresponde aos filtros selecionados.</p> : visibleResults.map((item) => <PlaceRow key={item.id} place={item} active={item.id === selectedId} saved={savedLeads.some((l) => l.id === item.id)} onSelect={setSelectedId} onToggleSave={handleToggleSave} />)}
           </div>
         </aside>
 
         <main className={`relative z-0 min-h-0 flex-1 overflow-hidden border-border lg:rounded-xl lg:border lg:shadow-lg ${mobileView === "map" ? "" : "hidden"} lg:block`}>
           <ClientOnly fallback={<MapSkeleton />}><Suspense fallback={<MapSkeleton />}><MapCanvas places={visibleResults} selectedId={selectedId} onSelect={setSelectedId} center={center} /></Suspense></ClientOnly>
-          {scanning && <div className="pointer-events-none absolute left-1/2 top-3 z-[500] flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /><span className="truncate">{signalZeroOnly ? "Verificando Sinal Zero..." : noWebsiteOnly ? "Pesquisando negócios sem site..." : "Buscando estabelecimentos..."}</span></div>}
+          {scanning && <div className="pointer-events-none absolute left-1/2 top-3 z-[500] flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /><span className="truncate">{signalZeroOnly && noWebsiteOnly ? "Verificando presença e site..." : signalZeroOnly ? "Verificando Sinal Zero..." : noWebsiteOnly ? "Pesquisando negócios sem site..." : "Buscando estabelecimentos..."}</span></div>}
         </main>
       </div>
     </div>
