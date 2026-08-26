@@ -48,28 +48,33 @@ function pathIdentity(link: string): string {
   }
 }
 
-function isSocial(link: string): boolean {
+function host(link: string): string {
   try {
-    const host = new URL(link).hostname.toLowerCase().replace(/^www\./, "");
-    return ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "linkedin.com", "x.com", "twitter.com"].some(
-      (domain) => host === domain || host.endsWith(`.${domain}`),
-    );
+    return new URL(link).hostname.toLowerCase().replace(/^www\./, "");
   } catch {
-    return false;
+    return "";
   }
 }
 
+function isSocial(link: string): boolean {
+  const value = host(link);
+  return ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "linkedin.com", "x.com", "twitter.com"].some(
+    (domain) => value === domain || value.endsWith(`.${domain}`),
+  );
+}
+
 function isDirectory(link: string): boolean {
-  try {
-    const host = new URL(link).hostname.toLowerCase().replace(/^www\./, "");
-    return [
-      "tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com",
-      "google.com", "google.com.br", "wikipedia.org", "wikidata.org", "openstreetmap.org",
-    ].some((domain) => host === domain || host.endsWith(`.${domain}`),
-    );
-  } catch {
-    return true;
-  }
+  const value = host(link);
+  return [
+    "tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com",
+    "google.com", "google.com.br", "maps.google.com", "wikipedia.org", "wikidata.org", "openstreetmap.org",
+  ].some((domain) => value === domain || value.endsWith(`.${domain}`));
+}
+
+function isLikelyOwnWebsite(link: string): boolean {
+  if (!link || isSocial(link) || isDirectory(link)) return false;
+  const value = host(link);
+  return Boolean(value && !value.endsWith(".gov.br") && !value.endsWith(".edu.br"));
 }
 
 async function googleSearch(query: string): Promise<SearchResponse> {
@@ -85,21 +90,21 @@ async function googleSearch(query: string): Promise<SearchResponse> {
   url.searchParams.set("hl", "pt-BR");
   url.searchParams.set("gl", "br");
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 3200);
+      const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 5000);
       if (response.ok) {
         const data = (await response.json()) as { items?: SearchItem[] };
         return { items: data.items ?? [], ok: true };
       }
-      if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
+      if (attempt < 2 && (response.status === 429 || response.status >= 500)) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
         continue;
       }
       return { items: [], ok: false };
     } catch {
-      if (attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
         continue;
       }
       return { items: [], ok: false };
@@ -115,33 +120,36 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
   const phone = lead.contact.phoneDigits ?? "";
 
   const socialQuery = `"${cleanName}" "${location}" (site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com)`;
-  const websiteQuery = `"${cleanName}" "${location}" "${address}" -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br -site:rappi.com.br`;
+  const websiteQuery = `"${cleanName}" "${location}" "${address}" -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:linkedin.com -site:x.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br -site:rappi.com.br -site:ubereats.com`;
   const identityQuery = phone
     ? `"${phone}" "${cleanName}"`
     : `"${cleanName}" "${location}" "${address}" official`;
 
-  const firstPass = await Promise.all([googleSearch(socialQuery), googleSearch(websiteQuery)]);
-  const firstItems = firstPass.flatMap((batch) => batch.items);
-  const firstSuccessful = firstPass.filter((batch) => batch.ok).length;
+  const firstItems: SearchItem[] = [];
+  let successfulQueries = 0;
 
-  const firstPassHasEvidence = firstItems.some((item) => {
+  const social = await googleSearch(socialQuery);
+  if (social.ok) successfulQueries += 1;
+  firstItems.push(...social.items);
+
+  const website = await googleSearch(websiteQuery);
+  if (website.ok) successfulQueries += 1;
+  firstItems.push(...website.items);
+
+  const strongWebsite = firstItems.some((item) => {
     const link = item.link ?? "";
-    if (!link) return false;
     const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
-    const urlEvidence = pathIdentity(link);
-    const match = Math.max(similarity(lead.name, evidence), similarity(lead.name, urlEvidence));
-    return (isSocial(link) && match >= 0.55) || (!isSocial(link) && !isDirectory(link) && match >= 0.75);
+    const match = Math.max(similarity(lead.name, evidence), similarity(lead.name, pathIdentity(link)));
+    return isLikelyOwnWebsite(link) && match >= 0.60;
   });
 
-  if (firstPassHasEvidence || firstSuccessful < 2) {
-    return { items: firstItems, successfulQueries: firstSuccessful };
+  if (strongWebsite || successfulQueries < 2) {
+    return { items: firstItems, successfulQueries };
   }
 
   const identity = await googleSearch(identityQuery);
-  return {
-    items: [...firstItems, ...identity.items],
-    successfulQueries: firstSuccessful + (identity.ok ? 1 : 0),
-  };
+  if (identity.ok) successfulQueries += 1;
+  return { items: [...firstItems, ...identity.items], successfulQueries };
 }
 
 function contactConfidence(lead: Establishment): "high" | "medium" | "low" {
@@ -165,10 +173,10 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   if (!externalVerificationConfigured()) return empty;
 
   const search = await searchLeadPresence(lead);
-  if (search.successfulQueries < 2) {
+  if (search.successfulQueries < 1) {
     return {
       ...empty,
-      reasons: ["A busca web não respondeu com consultas suficientes para confirmar este negócio."],
+      reasons: ["A busca web não respondeu. O lead não foi classificado para evitar falso positivo."],
     };
   }
 
@@ -187,18 +195,16 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     const locationMatch = locationText ? similarity(locationText, evidence) : 0;
     const combinedMatch = Math.max(nameMatch, urlMatch, nameMatch * 0.7 + locationMatch * 0.3);
 
-    if (isSocial(link) && combinedMatch >= 0.55) {
+    if (isSocial(link) && combinedMatch >= 0.50) {
       foundDigitalPresence = true;
       reasons.push(`Presença social encontrada com correspondência de ${Math.round(combinedMatch * 100)}%.`);
-      // Social presence is a rejection for Sinal Zero, but is not a rejection
-      // for the separate "Não possui site" filter.
       continue;
     }
 
-    if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.75) {
+    if (isLikelyOwnWebsite(link) && combinedMatch >= 0.60) {
       foundDigitalPresence = true;
       foundWebsite = true;
-      reasons.push(`Possível site oficial encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`);
+      reasons.push(`Possível site próprio encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`);
       break;
     }
   }
@@ -230,7 +236,7 @@ export async function verifyLeads(
   leads: Establishment[],
 ): Promise<(Establishment & { verification: LeadVerification })[]> {
   const output: (Establishment & { verification: LeadVerification })[] = [];
-  const concurrency = 8;
+  const concurrency = 2;
   for (let i = 0; i < leads.length; i += concurrency) {
     const batch = leads.slice(i, i + concurrency);
     const verified = await Promise.all(batch.map(async (lead) => ({ ...lead, verification: await verifyLead(lead) })));
