@@ -65,7 +65,8 @@ function isDirectory(link: string): boolean {
     return [
       "tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com",
       "google.com", "google.com.br", "wikipedia.org", "wikidata.org", "openstreetmap.org",
-    ].some((domain) => host === domain || host.endsWith(`.${domain}`));
+    ].some((domain) => host === domain || host.endsWith(`.${domain}`),
+    );
   } catch {
     return true;
   }
@@ -164,9 +165,6 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   if (!externalVerificationConfigured()) return empty;
 
   const search = await searchLeadPresence(lead);
-  // Duas consultas bem-sucedidas são suficientes para concluir que não houve
-  // evidência encontrada. Resultado vazio do CSE não significa erro: é um
-  // resultado válido para uma busca de ausência.
   if (search.successfulQueries < 2) {
     return {
       ...empty,
@@ -192,7 +190,9 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     if (isSocial(link) && combinedMatch >= 0.55) {
       foundDigitalPresence = true;
       reasons.push(`Presença social encontrada com correspondência de ${Math.round(combinedMatch * 100)}%.`);
-      break;
+      // Social presence is a rejection for Sinal Zero, but is not a rejection
+      // for the separate "Não possui site" filter.
+      continue;
     }
 
     if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.75) {
@@ -203,8 +203,12 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     }
   }
 
+  if (foundWebsite) {
+    return { status: "rejected", score: 0, reasons, checked: true, foundDigitalPresence: true, foundWebsite: true, contactConfidence: confidence };
+  }
+
   if (foundDigitalPresence) {
-    return { status: "rejected", score: 0, reasons, checked: true, foundDigitalPresence: true, foundWebsite, contactConfidence: confidence };
+    return { status: "verified", score: 100, reasons, checked: true, foundDigitalPresence: true, foundWebsite: false, contactConfidence: confidence };
   }
 
   reasons.push(search.items.length === 0
