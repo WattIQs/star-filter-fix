@@ -5,12 +5,23 @@ function escapeRegex(value: string): string {
   return value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
 }
 
+const SUPPORTED_BY_KEY: Record<string, string[]> = {
+  amenity: ["restaurant", "fast_food", "cafe", "bar", "pub", "pharmacy"],
+  shop: [
+    "bakery", "pastry", "hairdresser", "barber", "beauty", "massage", "tattoo", "cosmetics", "perfumery", "chemist",
+    "pet", "pet_grooming", "supermarket", "greengrocer", "butcher", "convenience", "kiosk", "general", "clothes", "shoes",
+    "boutique", "jewelry", "hardware", "doityourself", "paint", "florist",
+  ],
+  leisure: ["fitness_centre"],
+};
+
+function blocksForValues(area: string, key: string, values: string[]): string {
+  const pattern = values.map(escapeRegex).join("|");
+  return `nwr["${key}"~"^(${pattern})$"]["name"](${area});`;
+}
+
 function generalBlocks(area: string): string[] {
-  return [
-    `nwr["amenity"]["name"](${area});`,
-    `nwr["shop"]["name"](${area});`,
-    `nwr["leisure"]["name"](${area});`,
-  ];
+  return Object.entries(SUPPORTED_BY_KEY).map(([key, values]) => blocksForValues(area, key, values));
 }
 
 function categoryBlocks(area: string, categories: CategoryKey[]): string[] {
@@ -25,11 +36,9 @@ function categoryBlocks(area: string, categories: CategoryKey[]): string[] {
 
   const blocks: string[] = [];
   for (const [key, values] of groups) {
-    const pattern = [...values].map(escapeRegex).join("|");
-    if (!pattern) continue;
-    blocks.push(`nwr["${key}"~"^(${pattern})$"]["name"](${area});`);
+    if (values.size === 0) continue;
+    blocks.push(blocksForValues(area, key, [...values]));
   }
-
   return blocks.length > 0 ? blocks : generalBlocks(area);
 }
 
