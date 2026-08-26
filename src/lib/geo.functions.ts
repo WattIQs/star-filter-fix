@@ -21,19 +21,77 @@ export interface PlaceSuggestion {
   boundingBox: BoundingBox | null;
 }
 
+type NominatimResult = {
+  display_name: string;
+  lat: string;
+  lon: string;
+  boundingbox?: [string, string, string, string];
+};
+
+function toPlaceSuggestion(r: NominatimResult): PlaceSuggestion {
+  const bb = r.boundingbox;
+  const parts = r.display_name.split(",").map((p) => p.trim());
+  return {
+    label: r.display_name,
+    shortLabel: parts.slice(0, 3).join(", "),
+    lat: Number.parseFloat(r.lat),
+    lon: Number.parseFloat(r.lon),
+    boundingBox: bb && bb.length >= 4
+      ? {
+          south: Number.parseFloat(bb[0] ?? "0"),
+          north: Number.parseFloat(bb[1] ?? "0"),
+          west: Number.parseFloat(bb[2] ?? "0"),
+          east: Number.parseFloat(bb[3] ?? "0"),
+        }
+      : null,
+  };
+}
+
+function dedupePlaces(results: NominatimResult[]): NominatimResult[] {
+  const seen = new Set<string>();
+  return results.filter((item) => {
+    const key = `${Number(item.lat).toFixed(5)}:${Number(item.lon).toFixed(5)}:${item.display_name.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function queryPlaces(q: string): Promise<NominatimResult[]> {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", "8");
+  url.searchParams.set("q", q);
+  url.searchParams.set("countrycodes", "br");
+  url.searchParams.set("accept-language", "pt-BR");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("dedupe", "1");
+
+  const response = await fetchWithTimeout(
+    url.toString(),
+    { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
+    8000,
+  );
+  if (!response.ok) return [];
+  return (await response.json()) as NominatimResult[];
+}
+
 export const searchPlacesServer = createServerFn({ method: "POST" })
   .validator((data: { q: string }) => data)
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
-    const q = data.q.trim();
-    if (q.length < 3) return [];
-    const response = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=${encodeURIComponent(q)}`, { headers: { Accept: "application/json", "User-Agent": OSM_UA } }, 12000);
-    if (!response.ok) throw new Error(`Busca de lugares indisponível agora (código ${response.status}). Tente novamente.`);
-    const results = (await response.json()) as { display_name: string; lat: string; lon: string; boundingbox?: [string, string, string, string] }[];
-    return results.map((r) => {
-      const bb = r.boundingbox;
-      const parts = r.display_name.split(",").map((p) => p.trim());
-      return { label: r.display_name, shortLabel: parts.slice(0, 3).join(", "), lat: Number.parseFloat(r.lat), lon: Number.parseFloat(r.lon), boundingBox: bb && bb.length >= 4 ? { south: Number.parseFloat(bb[0] ?? "0"), north: Number.parseFloat(bb[1] ?? "0"), west: Number.parseFloat(bb[2] ?? "0"), east: Number.parseFloat(bb[3] ?? "0") } : null };
-    });
+    const q = data.q.trim().replace(/\s+/g, " ");
+    if (q.length < 2) return [];
+
+    const variants = [q, `${q}, Brasil`];
+    if (q.length >= 4) variants.push(q.split(" ").slice(-2).join(" "));
+
+    const batches = await Promise.all(variants.map(queryPlaces));
+    const merged = dedupePlaces(batches.flat());
+
+    return merged
+      .filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)))
+      .slice(0, 8)
+      .map(toPlaceSuggestion);
   });
 
 export const searchOverpassServer = createServerFn({ method: "POST" })
@@ -43,11 +101,24 @@ export const searchOverpassServer = createServerFn({ method: "POST" })
     const errors: string[] = [];
     for (const mirror of OVERPASS_MIRRORS) {
       try {
-        const response = await fetchWithTimeout(mirror, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA }, body: `data=${encodeURIComponent(query)}` }, 18000);
-        if (!response.ok) { errors.push(`${new URL(mirror).hostname}: ${response.status}`); continue; }
+        const response = await fetchWithTimeout(
+          mirror,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA },
+            body: `data=${encodeURIComponent(query)}`,
+          },
+          18000,
+        );
+        if (!response.ok) {
+          errors.push(`${new URL(mirror).hostname}: ${response.status}`);
+          continue;
+        }
         const json = (await response.json()) as { elements?: OverpassElement[] };
         return { elements: json.elements ?? [] };
-      } catch (error) { errors.push(`${new URL(mirror).hostname}: ${(error as Error).message}`); }
+      } catch (error) {
+        errors.push(`${new URL(mirror).hostname}: ${(error as Error).message}`);
+      }
     }
     throw new Error("Não foi possível concluir a varredura agora. O OpenStreetMap está demorando para responder; tente novamente em alguns segundos.");
   });
@@ -74,12 +145,8 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
       };
     }
 
-    // Limite deliberado: qualidade e tempo são melhores com uma primeira
-    // rodada menor; o usuário pode executar outra varredura em uma área diferente.
     const candidates = data.leads.slice(0, 24);
     const verified = await verifyLeads(candidates);
     const healthy = verified.some((lead) => lead.verification.checked);
-    // Credenciais válidas significam que a integração web está disponível.
-    // "healthy" continua indicando se houve pelo menos uma verificação concluída.
-    return { leads: verified, external: true, healthy };
+    return { leads: verified, external: healthy, healthy };
   });
