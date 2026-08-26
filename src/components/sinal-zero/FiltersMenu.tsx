@@ -13,8 +13,8 @@ interface FiltersMenuProps {
   onSignalZeroOnlyChange: (value: boolean) => void;
   contactOnly: boolean;
   onContactOnlyChange: (value: boolean) => void;
-  websiteOnly: boolean;
-  onWebsiteOnlyChange: (value: boolean) => void;
+  noWebsiteOnly: boolean;
+  onNoWebsiteOnlyChange: (value: boolean) => void;
   sortKey: SortKey;
   onSortKeyChange: (value: SortKey) => void;
 }
@@ -50,50 +50,38 @@ function HiddenFilterGroup({ title, summary, open, onToggle, children }: { title
 }
 
 function SelectOptionList({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
-  return <div className="space-y-1.5">
-    {options.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs transition-colors hover:bg-muted/40">
-      <input type="radio" name={`filter-${options === PRICE_OPTIONS ? "price" : "sort"}`} checked={value === option.value} onChange={() => onChange(option.value)} className="h-4 w-4 cursor-pointer accent-primary" />
-      <span>{option.label}</span>
-    </label>)}
-  </div>;
+  return <div className="space-y-1.5">{options.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs transition-colors hover:bg-muted/40"><input type="radio" name={`filter-${options === PRICE_OPTIONS ? "price" : "sort"}`} checked={value === option.value} onChange={() => onChange(option.value)} className="h-4 w-4 cursor-pointer accent-primary" /><span>{option.label}</span></label>)}</div>;
 }
 
-export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter, onPriceFilterChange, signalZeroOnly, onSignalZeroOnlyChange, contactOnly, onContactOnlyChange, websiteOnly, onWebsiteOnlyChange, sortKey, onSortKeyChange }: FiltersMenuProps) {
+export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter, onPriceFilterChange, signalZeroOnly, onSignalZeroOnlyChange, contactOnly, onContactOnlyChange, noWebsiteOnly, onNoWebsiteOnlyChange, sortKey, onSortKeyChange }: FiltersMenuProps) {
   const [searchGroupOpen, setSearchGroupOpen] = useState(false);
   const [ratingGroupOpen, setRatingGroupOpen] = useState(false);
   const [priceGroupOpen, setPriceGroupOpen] = useState(false);
   const [sortGroupOpen, setSortGroupOpen] = useState(false);
-  const activeCount = ratingFilters.length + (priceFilter !== "any" ? 1 : 0) + (signalZeroOnly ? 1 : 0) + (contactOnly ? 1 : 0) + (websiteOnly ? 1 : 0) + (sortKey !== "relevance" ? 1 : 0);
+  const activeCount = ratingFilters.length + (priceFilter !== "any" ? 1 : 0) + (signalZeroOnly ? 1 : 0) + (contactOnly ? 1 : 0) + (noWebsiteOnly ? 1 : 0) + (sortKey !== "relevance" ? 1 : 0);
   const ratingSummary = ratingFilters.length === 0 ? "Qualquer classificação" : ratingFilters.map((value) => RATING_OPTIONS.find((option) => option.value === value)?.label ?? value).join(", ");
-  const searchCount = Number(signalZeroOnly) + Number(contactOnly) + Number(websiteOnly);
+  const searchCount = Number(signalZeroOnly) + Number(contactOnly) + Number(noWebsiteOnly);
   const priceSummary = PRICE_OPTIONS.find((option) => option.value === priceFilter)?.label ?? "Qualquer preço";
   const sortSummary = SORT_LABELS[sortKey] ?? SORT_LABELS.relevance;
 
   return <Popover>
     <PopoverTrigger asChild><Button variant="outline" size="sm" className="relative z-[1201] shrink-0 gap-1.5 border-border bg-background text-xs shadow-sm hover:bg-accent"><SlidersHorizontal className="h-3.5 w-3.5" /><span>Filtro de busca</span>{activeCount > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{activeCount}</span>}<ChevronDown className="h-3.5 w-3.5 opacity-70" /></Button></PopoverTrigger>
     <PopoverContent align="end" sideOffset={8} collisionPadding={12} className="z-[5000] w-[340px] space-y-3 border-border bg-card p-4 shadow-2xl">
-      <div className="flex items-center justify-between border-b border-border pb-3"><div><h3 className="text-sm font-semibold text-foreground">Filtro de busca</h3><p className="mt-0.5 text-[10px] text-muted-foreground">Combine alternativas para encontrar exatamente o lead desejado.</p></div>{activeCount > 0 && <button type="button" onClick={() => { onRatingFiltersChange([]); onPriceFilterChange("any"); onSignalZeroOnlyChange(false); onContactOnlyChange(false); onWebsiteOnlyChange(false); onSortKeyChange("relevance"); }} className="text-[11px] font-medium text-primary hover:underline">Limpar</button>}</div>
+      <div className="flex items-center justify-between border-b border-border pb-3"><div><h3 className="text-sm font-semibold text-foreground">Filtro de busca</h3><p className="mt-0.5 text-[10px] text-muted-foreground">Combine alternativas para encontrar exatamente o lead desejado.</p></div>{activeCount > 0 && <button type="button" onClick={() => { onRatingFiltersChange([]); onPriceFilterChange("any"); onSignalZeroOnlyChange(false); onContactOnlyChange(false); onNoWebsiteOnlyChange(false); onSortKeyChange("relevance"); }} className="text-[11px] font-medium text-primary hover:underline">Limpar</button>}</div>
 
       <HiddenFilterGroup title="Busca e presença" summary={searchCount === 0 ? "Qualquer estabelecimento" : `${searchCount} filtro${searchCount > 1 ? "s" : ""} ativo${searchCount > 1 ? "s" : ""}`} open={searchGroupOpen} onToggle={() => setSearchGroupOpen((open) => !open)}>
-        <FilterToggle checked={signalZeroOnly} onChange={onSignalZeroOnlyChange} title="Somente Sinal Zero" description="Confirma ausência de presença digital comercial; candidatos não confirmados não entram." />
+        <FilterToggle checked={signalZeroOnly} onChange={onSignalZeroOnlyChange} title="Somente Sinal Zero" description="Confirma ausência de presença digital comercial antes de exibir o lead." />
         <FilterToggle checked={contactOnly} onChange={onContactOnlyChange} title="Contato: WhatsApp ou Instagram" description="Exige WhatsApp válido ou Instagram identificado para o estabelecimento." />
-        <FilterToggle checked={websiteOnly} onChange={onWebsiteOnlyChange} title="Presença de site" description="Exige um site identificado e associado ao estabelecimento." />
+        <FilterToggle checked={noWebsiteOnly} onChange={onNoWebsiteOnlyChange} title="Não possui site" description="Pesquisa a web e só mantém negócios sem um site próprio confirmado." />
       </HiddenFilterGroup>
 
       <HiddenFilterGroup title="Classificação" summary={ratingSummary} open={ratingGroupOpen} onToggle={() => setRatingGroupOpen((open) => !open)}>
-        <div className="grid grid-cols-2 gap-2">
-          {RATING_OPTIONS.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs hover:bg-muted/40"><input type="checkbox" checked={ratingFilters.includes(option.value)} onChange={() => { const next = ratingFilters.includes(option.value) ? ratingFilters.filter((item) => item !== option.value) : [...ratingFilters, option.value]; onRatingFiltersChange(next); }} className="h-4 w-4 cursor-pointer accent-primary" />{option.label}</label>)}
-        </div>
+        <div className="grid grid-cols-2 gap-2">{RATING_OPTIONS.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs hover:bg-muted/40"><input type="checkbox" checked={ratingFilters.includes(option.value)} onChange={() => { const next = ratingFilters.includes(option.value) ? ratingFilters.filter((item) => item !== option.value) : [...ratingFilters, option.value]; onRatingFiltersChange(next); }} className="h-4 w-4 cursor-pointer accent-primary" />{option.label}</label>)}</div>
         {ratingFilters.length > 0 && <button type="button" onClick={() => onRatingFiltersChange([])} className="text-[10px] font-medium text-primary hover:underline">Limpar classificação</button>}
       </HiddenFilterGroup>
 
-      <HiddenFilterGroup title="Preço" summary={priceSummary} open={priceGroupOpen} onToggle={() => setPriceGroupOpen((open) => !open)}>
-        <SelectOptionList value={priceFilter} onChange={onPriceFilterChange} options={PRICE_OPTIONS} />
-      </HiddenFilterGroup>
-
-      <HiddenFilterGroup title="Ordenar por" summary={sortSummary} open={sortGroupOpen} onToggle={() => setSortGroupOpen((open) => !open)}>
-        <SelectOptionList value={sortKey} onChange={onSortKeyChange} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ value: key, label: SORT_LABELS[key] }))} />
-      </HiddenFilterGroup>
+      <HiddenFilterGroup title="Preço" summary={priceSummary} open={priceGroupOpen} onToggle={() => setPriceGroupOpen((open) => !open)}><SelectOptionList value={priceFilter} onChange={onPriceFilterChange} options={PRICE_OPTIONS} /></HiddenFilterGroup>
+      <HiddenFilterGroup title="Ordenar por" summary={sortSummary} open={sortGroupOpen} onToggle={() => setSortGroupOpen((open) => !open)}><SelectOptionList value={sortKey} onChange={onSortKeyChange} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ value: key, label: SORT_LABELS[key] }))} /></HiddenFilterGroup>
     </PopoverContent>
   </Popover>;
 }
