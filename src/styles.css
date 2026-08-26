@@ -54,38 +54,25 @@
 
 :root {
   --radius: 0.75rem;
-
-  /* Base escura tipo blueprint */
   --background: oklch(0.18 0.03 260);
   --foreground: oklch(0.95 0.01 260);
-
   --card: oklch(0.22 0.04 260);
   --card-foreground: oklch(0.95 0.01 260);
-
   --popover: oklch(0.2 0.04 260);
   --popover-foreground: oklch(0.95 0.01 260);
-
-  /* Laranja-sinal vibrante como primário */
   --primary: oklch(0.65 0.2 55);
   --primary-foreground: oklch(0.15 0.03 260);
-
   --secondary: oklch(0.28 0.05 260);
   --secondary-foreground: oklch(0.92 0.01 260);
-
   --muted: oklch(0.28 0.04 260);
   --muted-foreground: oklch(0.65 0.03 260);
-
   --accent: oklch(0.32 0.06 260);
   --accent-foreground: oklch(0.95 0.01 260);
-
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.98 0.01 260);
-
   --border: oklch(0.35 0.04 260);
   --input: oklch(0.3 0.04 260);
   --ring: oklch(0.65 0.18 55);
-
-  /* Sinal */
   --signal-zero: oklch(0.68 0.22 55);
   --signal-zero-glow: oklch(0.75 0.28 60);
   --signal-weak: oklch(0.75 0.16 85);
@@ -97,131 +84,35 @@
 }
 
 @layer base {
-  * {
-    border-color: var(--color-border);
-  }
-
-  html {
-    font-family: "Space Grotesk", system-ui, sans-serif;
-  }
-
+  * { border-color: var(--color-border); }
+  html { font-family: "Space Grotesk", system-ui, sans-serif; }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    background-image:
-      linear-gradient(var(--color-grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+    background-image: linear-gradient(var(--color-grid) 1px, transparent 1px), linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
     background-size: 48px 48px;
     background-position: center top;
   }
-
-  code,
-  .font-mono {
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-  }
+  code, .font-mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
 }
 
 @layer utilities {
-  .text-gradient-signal {
-    background: linear-gradient(135deg, var(--color-signal-zero), var(--color-signal-zero-glow));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .glow-zero {
-    box-shadow: 0 0 18px -4px color-mix(in oklab, var(--color-signal-zero) 55%, transparent);
-  }
-
-  .glow-zero-text {
-    text-shadow: 0 0 16px color-mix(in oklab, var(--color-signal-zero) 60%, transparent);
-  }
-
-  .border-glow {
-    border-color: color-mix(in oklab, var(--color-signal-zero) 40%, var(--color-border));
-  }
-
-  .radar-ring {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 1px solid color-mix(in oklab, var(--color-signal-zero) 35%, transparent);
-    animation: radar-pulse 2.5s ease-out infinite;
-  }
-
-  .radar-sweep {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: conic-gradient(
-      from 0deg,
-      transparent 0deg,
-      color-mix(in oklab, var(--color-signal-zero) 45%, transparent) 60deg,
-      transparent 65deg
-    );
-    animation: radar-sweep 2s linear infinite;
-  }
+  .text-gradient-signal { background: linear-gradient(135deg, var(--color-signal-zero), var(--color-signal-zero-glow)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .glow-zero { box-shadow: 0 0 18px -4px color-mix(in oklab, var(--color-signal-zero) 55%, transparent); }
+  .glow-zero-text { text-shadow: 0 0 16px color-mix(in oklab, var(--color-signal-zero) 60%, transparent); }
+  .border-glow { border-color: color-mix(in oklab, var(--color-signal-zero) 40%, var(--color-border)); }
+  .radar-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--color-signal-zero) 35%, transparent); animation: radar-pulse 2.5s ease-out infinite; }
+  .radar-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--color-signal-zero) 45%, transparent) 60deg, transparent 65deg); animation: radar-sweep 2s linear infinite; }
 }
 
-@keyframes radar-pulse {
-  0% {
-    transform: scale(0.6);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(1.4);
-    opacity: 0;
-  }
-}
+@keyframes radar-pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
+@keyframes radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 14px -3px color-mix(in oklab, var(--color-signal-zero) 45%, transparent); } 50% { box-shadow: 0 0 24px -2px color-mix(in oklab, var(--color-signal-zero) 70%, transparent); } }
+@keyframes lead-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
 
-@keyframes radar-sweep {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes glow-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 14px -3px color-mix(in oklab, var(--color-signal-zero) 45%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 24px -2px color-mix(in oklab, var(--color-signal-zero) 70%, transparent);
-  }
-}
-
-.animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
-/* Mapa: encaixa o Leaflet no tema escuro do app */
-.leaflet-container {
-  background: var(--color-background);
-  font-family: inherit;
-}
-
-.leaflet-control-zoom a,
-.leaflet-control-attribution {
-  background: var(--color-card) !important;
-  color: var(--color-muted-foreground) !important;
-  border-color: var(--color-border) !important;
-}
-
-.leaflet-control-attribution a {
-  color: var(--color-muted-foreground) !important;
-}
-
-.leaflet-tooltip {
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  color: var(--color-foreground);
-  font-size: 11px;
-  box-shadow: none;
-}
-
-.leaflet-tooltip-top::before {
-  border-top-color: var(--color-border);
-}
+.leaflet-container { background: var(--color-background); font-family: inherit; }
+.leaflet-control-zoom a, .leaflet-control-attribution { background: var(--color-card) !important; color: var(--color-muted-foreground) !important; border-color: var(--color-border) !important; }
+.leaflet-control-attribution a { color: var(--color-muted-foreground) !important; }
+.leaflet-tooltip { background: var(--color-card); border: 1px solid var(--color-border); color: var(--color-foreground); font-size: 11px; box-shadow: none; }
+.leaflet-tooltip-top::before { border-top-color: var(--color-border); }
