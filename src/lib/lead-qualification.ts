@@ -88,7 +88,7 @@ function instagramFromValue(value: string | null): { handle: string | null; url:
   if (!value) return { handle: null, url: null };
   const cleaned = value.trim();
   const match = cleaned.match(/instagram\.com\/([A-Za-z0-9_.]+)/i);
-  const raw = match?.[1] ?? cleaned.replace(/^@/, "").split(/[/?\s]/)[0] ?? "";
+  const raw = match?.[1] ?? (cleaned.startsWith("@") ? cleaned.slice(1) : "");
   const handle = raw.replace(/[^A-Za-z0-9_.]/g, "");
   if (!handle || handle.length < 2) return { handle: null, url: null };
   return { handle: `@${handle}`, url: `https://instagram.com/${handle}` };
@@ -111,15 +111,14 @@ export function toWhatsappNumber(raw: string | null): string | null {
     if (local.length === 8 && !"2345".includes(firstLocal)) return null;
     return digits;
   }
-  if (digits.length >= 11 && digits.length <= 15) return digits;
   return null;
 }
 
 function buildContact(tags: Record<string, string>): EstablishmentContact {
-  const phoneRaw = getTag(tags, ["contact:whatsapp", "contact:mobile", "mobile", "phone", "contact:phone"]);
+  const phoneRaw = getTag(tags, ["phone", "contact:phone", "contact:mobile", "mobile"]);
   const phoneDigits = phoneRaw ? phoneRaw.replace(/\D/g, "") : null;
-  const whatsappSource = getTag(tags, ["contact:whatsapp", "whatsapp"]) ?? phoneRaw;
-  const whatsappNumber = toWhatsappNumber(whatsappSource);
+  const whatsappRaw = getTag(tags, ["contact:whatsapp", "whatsapp"]);
+  const whatsappNumber = toWhatsappNumber(whatsappRaw);
   const ig = instagramFromValue(getTag(tags, ["contact:instagram", "instagram"]));
   return {
     phoneRaw,
@@ -129,7 +128,7 @@ function buildContact(tags: Record<string, string>): EstablishmentContact {
     instagramHandle: ig.handle,
     instagramUrl: ig.url,
     facebookUrl: normalizeUrl(getTag(tags, ["contact:facebook", "facebook"])),
-    websiteUrl: normalizeUrl(getTag(tags, ["website", "contact:website"])),
+    websiteUrl: normalizeUrl(getTag(tags, ["website", "contact:website", "url", "contact:url"])),
     email: getTag(tags, ["email", "contact:email"]),
   };
 }
@@ -212,6 +211,14 @@ function resolveCategory(tags: Record<string, string>): { label: string; key: Ca
   return { label, key, osmValue };
 }
 
+function makeUrls(type: string, id: number, lat: number, lon: number): Pick<Establishment, "googleMapsUrl" | "osmUrl" | "directionsUrl"> {
+  return {
+    googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`,
+    osmUrl: `https://www.openstreetmap.org/${type}/${id}`,
+    directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lon}`)}`,
+  };
+}
+
 export function processOverpassResults(
   elements: Array<{ type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }>,
   categories: CategoryKey[],
@@ -226,9 +233,8 @@ export function processOverpassResults(
     const center = element.center ?? (element.lat !== undefined && element.lon !== undefined ? { lat: element.lat, lon: element.lon } : null);
     if (!center) continue;
     const resolved = resolveCategory(tags);
-    // Empty category selection means "all supported businesses". Only apply
-    // the category gate when the user actually selected categories.
     if (categorySet.size > 0 && resolved.key && !categorySet.has(resolved.key)) continue;
+    if (categorySet.size > 0 && !resolved.key) continue;
     const id = `${element.type}-${element.id}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -237,10 +243,27 @@ export function processOverpassResults(
     const contact = buildContact(tags);
     const rating = extractRating(tags);
     const priceLevel = extractPriceLevel(tags) ?? inferPriceLevel(tags, resolved.key);
+    const urls = makeUrls(element.type, element.id, center.lat, center.lon);
     results.push({
-      id, name, category: resolved.label, categoryKey: resolved.key, lat: center.lat, lon: center.lon,
-      rating, priceLevel, address: buildAddress(tags), level: classification.level, signals: classification.signals,
-      signalCount: classification.signalCount, contact, details, tags,
+      id,
+      osmType: element.type,
+      osmId: element.id,
+      name,
+      category: resolved.label,
+      categoryKey: resolved.key,
+      lat: center.lat,
+      lon: center.lon,
+      address: buildAddress(tags),
+      tags,
+      signals: classification.signals,
+      details,
+      contact,
+      contactable: Boolean(contact.whatsappValid || contact.instagramUrl),
+      signalCount: classification.signalCount,
+      level: classification.level,
+      rating,
+      priceLevel,
+      ...urls,
     });
   }
   return results;
