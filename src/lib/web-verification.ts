@@ -85,7 +85,7 @@ async function googleSearch(query: string): Promise<SearchResponse> {
   url.searchParams.set("safe", "off");
 
   try {
-    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 6500);
+    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 5000);
     if (!response.ok) return { items: [], ok: false };
     const data = (await response.json()) as { items?: SearchItem[] };
     return { items: data.items ?? [], ok: true };
@@ -100,12 +100,11 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
   const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
   const phone = lead.contact.phoneDigits ?? "";
 
+  // Poucas consultas de alta informação. O CSE é a etapa cara da verificação;
+  // três buscas bem direcionadas são preferíveis a seis buscas paralelas por lead.
   const queries = [
-    `"${cleanName}" "${location}" site:instagram.com`,
-    `"${cleanName}" "${location}" site:facebook.com`,
-    `"${cleanName}" "${location}" site:tiktok.com`,
-    `"${cleanName}" "${location}" site:youtube.com`,
-    `"${cleanName}" "${location}" ${address}`.trim(),
+    `"${cleanName}" "${location}" (site:instagram.com OR site:facebook.com OR site:tiktok.com)`,
+    `"${cleanName}" "${location}" "${address}"`.trim(),
     phone ? `"${phone}" "${cleanName}"` : `"${cleanName}" "${location}" official`,
   ];
 
@@ -136,8 +135,6 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   }
 
   const search = await searchLeadPresence(lead);
-  // Sem itens, não temos evidência suficiente para concluir nada sobre presença.
-  // Isso evita transformar um CSE mal configurado em um falso Sinal Zero.
   if (search.successfulQueries === 0 || search.items.length === 0) {
     return {
       status: "unverified",
@@ -153,12 +150,11 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     };
   }
 
-  const items = search.items;
   const reasons: string[] = [];
   let score = 100;
   let foundDigitalPresence = false;
 
-  for (const item of items) {
+  for (const item of search.items) {
     const link = item.link ?? "";
     if (!link) continue;
     const evidence = `${item.title ?? ""} ${item.snippet ?? ""}`;
