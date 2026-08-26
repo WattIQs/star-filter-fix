@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { BoundingBox, CategoryKey, Establishment } from "./types";
-import { CATEGORIES } from "./types";
-import { buildOverpassQuery } from "./overpass-query";
+import { buildAroundQuery, buildOverpassQuery } from "./overpass-query";
 import { fetchWithTimeout, OSM_UA, OVERPASS_MIRRORS } from "./geo.server";
 import { externalVerificationConfigured, verifyLeads, type LeadVerification } from "./web-verification";
 
@@ -68,62 +67,46 @@ async function queryPlaces(q: string): Promise<NominatimResult[]> {
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("dedupe", "1");
 
-  const response = await fetchWithTimeout(
-    url.toString(),
-    { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
-    8000,
-  );
-  if (!response.ok) return [];
-  return (await response.json()) as NominatimResult[];
+  try {
+    const response = await fetchWithTimeout(
+      url.toString(),
+      { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
+      6500,
+    );
+    if (!response.ok) return [];
+    return (await response.json()) as NominatimResult[];
+  } catch {
+    return [];
+  }
 }
 
-function buildAroundQuery(lat: number, lon: number, categories: CategoryKey[]): string {
-  const radius = 15000;
-  const byKey = new Map<string, Set<string>>();
-
-  for (const category of categories) {
-    for (const filter of CATEGORIES[category]?.filters ?? []) {
-      const values = byKey.get(filter.key) ?? new Set<string>();
-      filter.values.forEach((value) => values.add(value));
-      byKey.set(filter.key, values);
-    }
+async function queryOverpassMirror(mirror: string, query: string): Promise<OverpassElement[] | null> {
+  try {
+    const response = await fetchWithTimeout(
+      mirror,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA },
+        body: `data=${encodeURIComponent(query)}`,
+      },
+      7500,
+    );
+    if (!response.ok) return null;
+    const json = (await response.json()) as { elements?: OverpassElement[] };
+    return json.elements ?? [];
+  } catch {
+    return null;
   }
-
-  if (byKey.size === 0) {
-    return `[out:json][timeout:20];\n(\nnwr["name"]["amenity"](around:${radius},${lat},${lon});\nnwr["name"]["shop"](around:${radius},${lat},${lon});\nnwr["name"]["leisure"](around:${radius},${lat},${lon});\n);\nout tags center 2000;`;
-  }
-
-  const blocks: string[] = [];
-  for (const [key, values] of byKey) {
-    const escaped = [...values]
-      .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("|");
-    blocks.push(`nwr["${key}"~"^(${escaped})$"](around:${radius},${lat},${lon});`);
-  }
-
-  return `[out:json][timeout:20];\n(\n${blocks.join("\n")}\n);\nout tags center 2200;`;
 }
 
 async function queryOverpass(query: string): Promise<OverpassElement[] | null> {
-  for (const mirror of OVERPASS_MIRRORS) {
-    try {
-      const response = await fetchWithTimeout(
-        mirror,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA },
-          body: `data=${encodeURIComponent(query)}`,
-        },
-        22000,
-      );
-      if (!response.ok) continue;
-      const json = (await response.json()) as { elements?: OverpassElement[] };
-      return json.elements ?? [];
-    } catch {
-      // Continue with another Overpass mirror.
-    }
-  }
-  return null;
+  // Os mirrors são consultados em paralelo. Isso remove o gargalo anterior,
+  // em que um mirror lento fazia a varredura esperar 3 tentativas em série.
+  const responses = await Promise.all(OVERPASS_MIRRORS.map((mirror) => queryOverpassMirror(mirror, query)));
+  const withResults = responses.find((result) => Array.isArray(result) && result.length > 0);
+  if (withResults) return withResults;
+  const successfulEmpty = responses.find((result) => Array.isArray(result));
+  return successfulEmpty ?? null;
 }
 
 export const searchPlacesServer = createServerFn({ method: "POST" })
@@ -136,9 +119,7 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
     if (q.length >= 4) variants.push(q.split(" ").slice(-2).join(" "));
 
     const batches = await Promise.all(variants.map(queryPlaces));
-    const merged = dedupePlaces(batches.flat());
-
-    return merged
+    return dedupePlaces(batches.flat())
       .filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)))
       .slice(0, 8)
       .map(toPlaceSuggestion);
@@ -150,26 +131,18 @@ export const searchOverpassServer = createServerFn({ method: "POST" })
     const primary = await queryOverpass(buildOverpassQuery(data.area, data.categories, data.signalZeroOnly === true));
     if (primary && primary.length > 0) return { elements: primary };
 
-    // Fallback espacial: se uma bbox do Nominatim vier estreita, incompleta ou
-    // não casar bem com os objetos OSM, procuramos num raio de 15 km do centro.
-    // A busca continua independente do filtro Sinal Zero.
     const centerLat = (data.area.south + data.area.north) / 2;
     const centerLon = (data.area.west + data.area.east) / 2;
-    const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories));
-
+    const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories, 5000));
     if (fallback && fallback.length > 0) return { elements: fallback };
-    if (primary !== null || fallback !== null) return { elements: [] };
 
+    if (primary !== null || fallback !== null) return { elements: [] };
     throw new Error("Não foi possível consultar o OpenStreetMap agora. Tente novamente em alguns segundos.");
   });
 
 export const verifyLeadsServer = createServerFn({ method: "POST" })
   .validator((data: { leads: Establishment[] }) => data)
-  .handler(async ({ data }): Promise<{
-    leads: (Establishment & { verification: LeadVerification })[];
-    external: boolean;
-    healthy: boolean;
-  }> => {
+  .handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean; healthy: boolean }> => {
     if (!externalVerificationConfigured()) {
       return {
         leads: data.leads.map((lead) => ({
