@@ -21,12 +21,58 @@ export interface PlaceSuggestion {
   boundingBox: BoundingBox | null;
 }
 
-type NominatimResult = { display_name: string; lat: string; lon: string; boundingbox?: [string, string, string, string] };
+type NominatimAddress = {
+  city?: string;
+  town?: string;
+  municipality?: string;
+  village?: string;
+  suburb?: string;
+  neighbourhood?: string;
+  state?: string;
+  country?: string;
+  country_code?: string;
+};
+
+type NominatimResult = {
+  display_name: string;
+  name?: string;
+  lat: string;
+  lon: string;
+  type?: string;
+  class?: string;
+  address?: NominatimAddress;
+  boundingbox?: [string, string, string, string];
+};
+
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function toPlaceSuggestion(r: NominatimResult): PlaceSuggestion {
   const bb = r.boundingbox;
   const parts = r.display_name.split(",").map((p) => p.trim());
-  return { label: r.display_name, shortLabel: parts.slice(0, 3).join(", "), lat: Number.parseFloat(r.lat), lon: Number.parseFloat(r.lon), boundingBox: bb && bb.length >= 4 ? { south: Number.parseFloat(bb[0] ?? "0"), north: Number.parseFloat(bb[1] ?? "0"), west: Number.parseFloat(bb[2] ?? "0"), east: Number.parseFloat(bb[3] ?? "0") } : null };
+  const short = [r.name ?? parts[0], r.address?.state].filter(Boolean).join(", ");
+  return {
+    label: r.display_name,
+    shortLabel: short || parts.slice(0, 3).join(", "),
+    lat: Number.parseFloat(r.lat),
+    lon: Number.parseFloat(r.lon),
+    boundingBox:
+      bb && bb.length >= 4
+        ? {
+            south: Number.parseFloat(bb[0] ?? "0"),
+            north: Number.parseFloat(bb[1] ?? "0"),
+            west: Number.parseFloat(bb[2] ?? "0"),
+            east: Number.parseFloat(bb[3] ?? "0"),
+          }
+        : null,
+  };
 }
 
 function dedupePlaces(results: NominatimResult[]): NominatimResult[] {
@@ -39,18 +85,59 @@ function dedupePlaces(results: NominatimResult[]): NominatimResult[] {
   });
 }
 
-async function queryPlaces(q: string): Promise<NominatimResult[]> {
+function looksLikeCitySearch(q: string): boolean {
+  return !/\d/.test(q) && !/(rua|avenida|av\.?|rodovia|estrada|praça|praca|travessa|alameda|bairro|cep)/i.test(q);
+}
+
+function cityName(result: NominatimResult): string {
+  return normalizeText(
+    result.name ??
+      result.address?.city ??
+      result.address?.town ??
+      result.address?.municipality ??
+      result.address?.village ??
+      "",
+  );
+}
+
+function matchScore(query: string, result: NominatimResult): number {
+  const normalizedQuery = normalizeText(query);
+  const city = cityName(result);
+  const display = normalizeText(result.display_name);
+  const state = normalizeText(result.address?.state);
+
+  if (!normalizedQuery) return 0;
+  if (city === normalizedQuery) return 100;
+  if (city.startsWith(normalizedQuery)) return 90;
+  if (display === normalizedQuery) return 85;
+  if (display.startsWith(normalizedQuery)) return 78;
+  if (display.includes(` ${normalizedQuery} `)) return 65;
+  if (state === normalizedQuery) return 55;
+
+  const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+  const cityTokens = city.split(" ").filter(Boolean);
+  const matched = queryTokens.filter((token) => cityTokens.some((candidate) => candidate.startsWith(token))).length;
+  return queryTokens.length > 0 ? Math.round((matched / queryTokens.length) * 50) : 0;
+}
+
+async function queryPlaces(q: string, cityOnly = false): Promise<NominatimResult[]> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("limit", "8");
+  url.searchParams.set("limit", "10");
   url.searchParams.set("q", q);
   url.searchParams.set("countrycodes", "br");
   url.searchParams.set("accept-language", "pt-BR");
   url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("namedetails", "1");
   url.searchParams.set("dedupe", "1");
+  if (cityOnly) url.searchParams.set("featuretype", "city");
 
   try {
-    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json", "User-Agent": OSM_UA } }, 4500);
+    const response = await fetchWithTimeout(
+      url.toString(),
+      { headers: { Accept: "application/json", "User-Agent": OSM_UA } },
+      4500,
+    );
     if (!response.ok) return [];
     return (await response.json()) as NominatimResult[];
   } catch {
@@ -58,11 +145,34 @@ async function queryPlaces(q: string): Promise<NominatimResult[]> {
   }
 }
 
+function rankPlaceResults(q: string, results: NominatimResult[]): NominatimResult[] {
+  const deduped = dedupePlaces(results);
+  return deduped
+    .map((item, index) => ({ item, score: matchScore(q, item), index }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .filter(({ score }, index, all) => {
+      if (index === 0) return true;
+      const bestScore = all[0]?.score ?? 0;
+      if (bestScore >= 90) return score >= 70;
+      if (bestScore >= 75) return score >= 55;
+      return score >= 35;
+    })
+    .map(({ item }) => item)
+    .slice(0, 8);
+}
+
 async function queryOverpassMirror(mirror: string, query: string): Promise<OverpassElement[] | null> {
   try {
     const response = await fetchWithTimeout(
       mirror,
-      { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA }, body: `data=${encodeURIComponent(query)}` },
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": OSM_UA,
+        },
+        body: `data=${encodeURIComponent(query)}`,
+      },
       13000,
     );
     if (!response.ok) return null;
@@ -107,7 +217,12 @@ function splitArea(area: BoundingBox): BoundingBox[] {
 
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      tiles.push({ south: south + row * tileHeight, north: row === rows - 1 ? north : south + (row + 1) * tileHeight, west: west + col * tileWidth, east: col === cols - 1 ? east : west + (col + 1) * tileWidth });
+      tiles.push({
+        south: south + row * tileHeight,
+        north: row === rows - 1 ? north : south + (row + 1) * tileHeight,
+        west: west + col * tileWidth,
+        east: col === cols - 1 ? east : west + (col + 1) * tileWidth,
+      });
     }
   }
   return tiles;
@@ -124,10 +239,16 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
   .validator((data: { q: string }) => data)
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
     const q = data.q.trim().replace(/\s+/g, " ");
-    if (q.length < 2) return [];
-    const primary = await queryPlaces(q);
-    const fallback = primary.length > 0 ? [] : await queryPlaces(`${q}, Brasil`);
-    return dedupePlaces([...primary, ...fallback]).filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon))).slice(0, 8).map(toPlaceSuggestion);
+    if (q.length < 3) return [];
+
+    const cityLike = looksLikeCitySearch(q);
+    const exactFirst = await queryPlaces(q, cityLike);
+    const primary = rankPlaceResults(q, exactFirst);
+
+    if (primary.length > 0 && primary[0]) return primary.map(toPlaceSuggestion);
+
+    const fallback = await queryPlaces(`${q}, Brasil`, false);
+    return rankPlaceResults(q, fallback).map(toPlaceSuggestion);
   });
 
 export const searchOverpassServer = createServerFn({ method: "POST" })
@@ -147,7 +268,22 @@ export const verifyLeadsServer = createServerFn({ method: "POST" })
   .validator((data: { leads: Establishment[] }) => data)
   .handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean; healthy: boolean }> => {
     if (!externalVerificationConfigured()) {
-      return { leads: data.leads.map((lead) => ({ ...lead, verification: { status: "unverified" as const, score: 0, reasons: ["Busca externa não configurada. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX para validar presença digital."], checked: false, foundDigitalPresence: false, foundWebsite: false, contactConfidence: lead.contact.whatsappValid ? "high" : lead.contact.phoneDigits ? "medium" : "low" } })), external: false, healthy: false };
+      return {
+        leads: data.leads.map((lead) => ({
+          ...lead,
+          verification: {
+            status: "unverified" as const,
+            score: 0,
+            reasons: ["Busca externa não configurada. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX para validar presença digital."],
+            checked: false,
+            foundDigitalPresence: false,
+            foundWebsite: false,
+            contactConfidence: lead.contact.whatsappValid ? "high" : lead.contact.phoneDigits ? "medium" : "low",
+          },
+        })),
+        external: false,
+        healthy: false,
+      };
     }
     const verified = await verifyLeads(data.leads);
     const healthy = verified.length === 0 || verified.every((lead) => lead.verification.checked);
