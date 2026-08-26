@@ -15,13 +15,11 @@ import { SavedLeadsDrawer } from "@/components/sinal-zero/SavedLeadsDrawer";
 const MapCanvas = lazy(() => import("@/components/sinal-zero/MapCanvas"));
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Sinal Zero — Mapa de negócios" },
-      { name: "description", content: "Encontre e qualifique negócios para prospecção." },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-    ],
-  }),
+  head: () => ({ meta: [
+    { title: "Sinal Zero — Mapa de negócios" },
+    { name: "description", content: "Encontre e qualifique negócios para prospecção." },
+    { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+  ]}),
   component: Index,
 });
 
@@ -42,12 +40,10 @@ function ratingMatchesFilter(rating: number | null, filters: string[]): boolean 
 function categoryMatches(lead: Establishment, categories: CategoryKey[]): boolean {
   if (categories.length === 0) return true;
   if (lead.categoryKey && categories.includes(lead.categoryKey)) return true;
-  return categories.some((category) =>
-    CATEGORIES[category].filters.some((filter) => {
-      const value = lead.tags[filter.key];
-      return Boolean(value && filter.values.includes(value));
-    }),
-  );
+  return categories.some((category) => CATEGORIES[category].filters.some((filter) => {
+    const value = lead.tags[filter.key];
+    return Boolean(value && filter.values.includes(value));
+  }));
 }
 
 function MapSkeleton() {
@@ -55,7 +51,18 @@ function MapSkeleton() {
 }
 
 function hasContact(lead: Establishment): boolean {
-  return Boolean(lead.contact.whatsappValid || lead.contact.instagramUrl);
+  return Boolean(
+    lead.contact.whatsappValid ||
+    lead.contact.phoneDigits ||
+    lead.contact.email ||
+    lead.contact.instagramUrl ||
+    lead.contact.facebookUrl ||
+    lead.contact.websiteUrl ||
+    lead.signals.phone ||
+    lead.signals.email ||
+    lead.signals.instagram ||
+    lead.signals.facebook ||
+  );
 }
 
 function Index() {
@@ -80,7 +87,7 @@ function Index() {
 
   useEffect(() => setSavedLeads(getSavedLeads()), []);
 
-  const filterByCategory = (leads: Establishment[]) => leads.filter((lead) => categoryMatches(lead, categories));
+  const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
 
   const verifyPresence = async (leads: Establishment[], scanId: number, signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
     if (leads.length === 0) {
@@ -90,7 +97,6 @@ function Index() {
       }
       return;
     }
-
     try {
       const verified = await verifyLeadsServer({ data: { leads } });
       if (scanId !== scanIdRef.current) return;
@@ -100,13 +106,10 @@ function Index() {
         setError("A verificação web está indisponível. Configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX no Render.");
         return;
       }
-
       setVerificationMode("external");
       const finalLeads = verified.leads.filter((lead) => {
         if (!lead.verification.checked) return false;
-        const signalMatch = !signalZero || !lead.verification.foundDigitalPresence;
-        const websiteMatch = !noWebsite || !lead.verification.foundWebsite;
-        return signalMatch && websiteMatch;
+        return (!signalZero || !lead.verification.foundDigitalPresence) && (!noWebsite || !lead.verification.foundWebsite);
       });
       setResults(finalLeads);
       setError(finalLeads.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
@@ -118,19 +121,17 @@ function Index() {
     }
   };
 
-  const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults) => {
-    const categoryResults = filterByCategory(source);
+  const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults, selected = categories) => {
+    const categoryResults = filterByCategory(source, selected);
     const scanId = ++scanIdRef.current;
     setError(null);
     setSelectedId(null);
-
     if (!signalZero && !noWebsite) {
       setVerificationMode("off");
-      setResults(categoryResults);
+      setResults(source);
       setScanning(false);
       return;
     }
-
     setScanning(true);
     const mode: VerificationMode = signalZero && noWebsite ? "both" : signalZero ? "signal-zero" : "no-website";
     void verifyPresence(categoryResults, scanId, signalZero, noWebsite, mode).finally(() => {
@@ -148,37 +149,51 @@ function Index() {
     setCenter({ lat: target.lat, lon: target.lon });
     setVerificationMode("off");
     setMobileView("leads");
-
     const area = target.boundingBox ?? { south: target.lat - 0.05, north: target.lat + 0.05, west: target.lon - 0.05, east: target.lon + 0.05 };
-
     try {
       const data = await searchOverpassServer({ data: { area, categories: [] } });
       if (scanId !== scanIdRef.current) return;
       const processed = processOverpassResults(data.elements, []);
       setAllResults(processed);
-
       if (processed.length === 0) {
         setResults([]);
         setError("Nenhum estabelecimento foi encontrado nessa área. Tente outro local ou amplie a área pesquisada.");
         return;
       }
-
-      runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly, processed);
+      if (signalZeroOnly || noWebsiteOnly) {
+        const mode: VerificationMode = signalZeroOnly && noWebsiteOnly ? "both" : signalZeroOnly ? "signal-zero" : "no-website";
+        const categoryResults = filterByCategory(processed);
+        const verificationId = scanIdRef.current;
+        void verifyPresence(categoryResults, verificationId, signalZeroOnly, noWebsiteOnly, mode).finally(() => {
+          if (verificationId === scanIdRef.current) setScanning(false);
+        });
+      } else {
+        setResults(processed);
+      }
     } catch (err) {
       if (scanId !== scanIdRef.current) return;
       setError(err instanceof Error ? err.message : "Erro ao pesquisar a área.");
     } finally {
-      if (scanId === scanIdRef.current) setScanning(false);
+      if (scanId === scanIdRef.current && !signalZeroOnly && !noWebsiteOnly) setScanning(false);
     }
   };
 
-  const handlePickPlace = (target: PlaceSuggestion) => { setPlace(target); void runScan(target); };
+  const handlePickPlace = (target: PlaceSuggestion) => {
+    // Selecting a location does not scan. Only the explicit scan button does.
+    setPlace(target);
+    setCenter({ lat: target.lat, lon: target.lon });
+    setError(null);
+  };
   const handleScanCurrentPlace = () => { if (place) void runScan(place); else setError("Pesquise primeiro uma cidade, bairro ou local."); };
 
   const handleCategoriesChange = (next: CategoryKey[]) => {
     setCategories(next);
     setError(null);
-    if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly);
+    // Categories are local filters after a scan. Only presence verification needs a new server check.
+    if (allResults.length > 0) {
+      if (signalZeroOnly || noWebsiteOnly) runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly, allResults, next);
+      else setResults(allResults);
+    }
   };
 
   const handleToggleSave = (lead: Establishment) => {
@@ -188,12 +203,12 @@ function Index() {
 
   const handleSignalZeroChange = (enabled: boolean) => {
     setSignalZeroOnly(enabled);
-    if (allResults.length > 0) runVerificationForCurrentFilters(enabled, noWebsiteOnly);
+    if (allResults.length > 0) runVerificationForCurrentFilters(enabled, noWebsiteOnly, allResults);
   };
 
   const handleNoWebsiteChange = (enabled: boolean) => {
     setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, enabled);
+    if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, enabled, allResults);
   };
 
   const visibleResults = useMemo(() => {
@@ -235,22 +250,11 @@ function Index() {
 }
 
 function getSavedLeads(): SavedLead[] {
-  try {
-    return JSON.parse(localStorage.getItem("sinal-zero-saved-leads") ?? "[]") as SavedLead[];
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem("sinal-zero-saved-leads") ?? "[]") as SavedLead[]; } catch { return []; }
 }
-
-function isLeadSaved(id: string): boolean {
-  return getSavedLeads().some((lead) => lead.id === id);
-}
-
+function isLeadSaved(id: string): boolean { return getSavedLeads().some((lead) => lead.id === id); }
 function saveLead(lead: Establishment): void {
   const current = getSavedLeads();
   if (!current.some((item) => item.id === lead.id)) localStorage.setItem("sinal-zero-saved-leads", JSON.stringify([...current, lead]));
 }
-
-function removeLead(id: string): void {
-  localStorage.setItem("sinal-zero-saved-leads", JSON.stringify(getSavedLeads().filter((lead) => lead.id !== id)));
-}
+function removeLead(id: string): void { localStorage.setItem("sinal-zero-saved-leads", JSON.stringify(getSavedLeads().filter((lead) => lead.id !== id))); }
