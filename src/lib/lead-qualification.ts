@@ -43,7 +43,12 @@ function hasTag(tags: Record<string, string>, keys: string[]): boolean {
 }
 
 function hasWellKnownBrand(tags: Record<string, string>): boolean {
-  const haystack = normalizeText([tags.name, tags.brand, tags.operator, tags.official_name].filter(Boolean).join(" "));
+  const haystack = normalizeText([
+    tags["name"],
+    tags["brand"],
+    tags["operator"],
+    tags["official_name"],
+  ].filter(Boolean).join(" "));
   if (!haystack) return false;
   return WELL_KNOWN_BRANDS.some((brand) => {
     const normalizedBrand = normalizeText(brand);
@@ -72,7 +77,7 @@ export function classifySignals(tags: Record<string, string>) {
   else level = "zero";
 
   return {
-    signals: { website, instagram, facebook, tiktok, youtube, linkedin, twitter, email, phone },
+    signals: { website, instagram, facebook, email, phone },
     signalCount,
     level,
   };
@@ -88,7 +93,7 @@ function instagramFromValue(value: string | null): { handle: string | null; url:
   if (!value) return { handle: null, url: null };
   const cleaned = value.trim();
   const match = cleaned.match(/instagram\.com\/([A-Za-z0-9_.]+)/i);
-  const raw = match?.[1] ?? (cleaned.startsWith("@") ? cleaned.slice(1) : "");
+  const raw = match?.[1] ?? cleaned.replace(/^@/, "").split(/[/?\s]/)[0] ?? "";
   const handle = raw.replace(/[^A-Za-z0-9_.]/g, "");
   if (!handle || handle.length < 2) return { handle: null, url: null };
   return { handle: `@${handle}`, url: `https://instagram.com/${handle}` };
@@ -111,14 +116,15 @@ export function toWhatsappNumber(raw: string | null): string | null {
     if (local.length === 8 && !"2345".includes(firstLocal)) return null;
     return digits;
   }
+  if (digits.length >= 11 && digits.length <= 15) return digits;
   return null;
 }
 
 function buildContact(tags: Record<string, string>): EstablishmentContact {
-  const phoneRaw = getTag(tags, ["phone", "contact:phone", "contact:mobile", "mobile"]);
+  const phoneRaw = getTag(tags, ["contact:whatsapp", "contact:mobile", "mobile", "phone", "contact:phone"]);
   const phoneDigits = phoneRaw ? phoneRaw.replace(/\D/g, "") : null;
-  const whatsappRaw = getTag(tags, ["contact:whatsapp", "whatsapp"]);
-  const whatsappNumber = toWhatsappNumber(whatsappRaw);
+  const whatsappSource = getTag(tags, ["contact:whatsapp", "whatsapp"]);
+  const whatsappNumber = toWhatsappNumber(whatsappSource);
   const ig = instagramFromValue(getTag(tags, ["contact:instagram", "instagram"]));
   return {
     phoneRaw,
@@ -128,7 +134,7 @@ function buildContact(tags: Record<string, string>): EstablishmentContact {
     instagramHandle: ig.handle,
     instagramUrl: ig.url,
     facebookUrl: normalizeUrl(getTag(tags, ["contact:facebook", "facebook"])),
-    websiteUrl: normalizeUrl(getTag(tags, ["website", "contact:website", "url", "contact:url"])),
+    websiteUrl: normalizeUrl(getTag(tags, ["website", "contact:website"])),
     email: getTag(tags, ["email", "contact:email"]),
   };
 }
@@ -211,14 +217,6 @@ function resolveCategory(tags: Record<string, string>): { label: string; key: Ca
   return { label, key, osmValue };
 }
 
-function makeUrls(type: string, id: number, lat: number, lon: number): Pick<Establishment, "googleMapsUrl" | "osmUrl" | "directionsUrl"> {
-  return {
-    googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`,
-    osmUrl: `https://www.openstreetmap.org/${type}/${id}`,
-    directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lon}`)}`,
-  };
-}
-
 export function processOverpassResults(
   elements: Array<{ type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }>,
   categories: CategoryKey[],
@@ -234,7 +232,6 @@ export function processOverpassResults(
     if (!center) continue;
     const resolved = resolveCategory(tags);
     if (categorySet.size > 0 && resolved.key && !categorySet.has(resolved.key)) continue;
-    if (categorySet.size > 0 && !resolved.key) continue;
     const id = `${element.type}-${element.id}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -243,27 +240,14 @@ export function processOverpassResults(
     const contact = buildContact(tags);
     const rating = extractRating(tags);
     const priceLevel = extractPriceLevel(tags) ?? inferPriceLevel(tags, resolved.key);
-    const urls = makeUrls(element.type, element.id, center.lat, center.lon);
+    const contactable = contact.whatsappValid || contact.instagramUrl !== null || contact.phoneDigits !== null || contact.email !== null;
     results.push({
-      id,
-      osmType: element.type,
-      osmId: element.id,
-      name,
-      category: resolved.label,
-      categoryKey: resolved.key,
-      lat: center.lat,
-      lon: center.lon,
-      address: buildAddress(tags),
-      tags,
-      signals: classification.signals,
-      details,
-      contact,
-      contactable: Boolean(contact.whatsappValid || contact.instagramUrl),
-      signalCount: classification.signalCount,
-      level: classification.level,
-      rating,
-      priceLevel,
-      ...urls,
+      id, osmType: element.type, osmId: element.id, name, category: resolved.label, categoryKey: resolved.key,
+      lat: center.lat, lon: center.lon, address: buildAddress(tags), level: classification.level, signals: classification.signals,
+      signalCount: classification.signalCount, contact, contactable, details, tags, rating, priceLevel,
+      googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${center.lat},${center.lon}`)}`,
+      osmUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+      directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${center.lat},${center.lon}`,
     });
   }
   return results;
