@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SORT_LABELS, type SortKey } from "@/lib/types";
@@ -36,7 +36,7 @@ function FilterToggle({ checked, onChange, title, description }: { checked: bool
   return <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border/70 bg-muted/30 px-3 py-3 transition-colors hover:bg-muted/50"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-4 w-4 cursor-pointer accent-primary" /><span><span className="block text-xs font-semibold text-foreground">{title}</span><span className="mt-0.5 block text-[10px] leading-relaxed text-muted-foreground">{description}</span></span></label>;
 }
 
-function HiddenFilterGroup({ title, summary, open, onToggle, children }: { title: string; summary: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+function HiddenFilterGroup({ title, summary, open, onToggle, children }: { title: string; summary: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   return <div className="rounded-lg border border-border/70 bg-muted/10">
     <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/30">
       <span className="min-w-0"><span className="block text-xs font-semibold text-foreground">{title}</span><span className="block truncate text-[10px] text-muted-foreground">{summary}</span></span>
@@ -44,20 +44,6 @@ function HiddenFilterGroup({ title, summary, open, onToggle, children }: { title
     </button>
     {open && <div className="space-y-2 border-t border-border/60 p-3">{children}</div>}
   </div>;
-}
-
-function MultiRatingFilter({ values, onChange }: { values: string[]; onChange: (values: string[]) => void }) {
-  const toggle = (value: string) => {
-    const next = values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
-    onChange(next);
-  };
-
-  return <HiddenFilterGroup
-    title="Classificação"
-    summary={values.length === 0 ? "Qualquer classificação" : `${values.length} selecionada${values.length > 1 ? "s" : ""}`}
-    open={false}
-    onToggle={() => undefined}
-  >{null}</HiddenFilterGroup>;
 }
 
 export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter, onPriceFilterChange, signalZeroOnly, onSignalZeroOnlyChange, contactOnly, onContactOnlyChange, websiteOnly, onWebsiteOnlyChange, sortKey, onSortKeyChange }: FiltersMenuProps) {
@@ -78,15 +64,12 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
         <FilterToggle checked={websiteOnly} onChange={onWebsiteOnlyChange} title="Presença de site" description="Exige um site identificado e associado ao estabelecimento." />
       </HiddenFilterGroup>
 
-      <div className="rounded-lg border border-border/70 bg-muted/10">
-        <button type="button" onClick={() => setRatingGroupOpen((open) => !open)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/30">
-          <span className="min-w-0"><span className="block text-xs font-semibold text-foreground">Classificação</span><span className="block truncate text-[10px] text-muted-foreground">{ratingSummary}</span></span>
-          {ratingGroupOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        </button>
-        {ratingGroupOpen && <div className="grid grid-cols-2 gap-2 border-t border-border/60 p-3">
+      <HiddenFilterGroup title="Classificação" summary={ratingSummary} open={ratingGroupOpen} onToggle={() => setRatingGroupOpen((open) => !open)}>
+        <div className="grid grid-cols-2 gap-2">
           {RATING_OPTIONS.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2 text-xs hover:bg-muted/40"><input type="checkbox" checked={ratingFilters.includes(option.value)} onChange={() => { const next = ratingFilters.includes(option.value) ? ratingFilters.filter((item) => item !== option.value) : [...ratingFilters, option.value]; onRatingFiltersChange(next); }} className="h-4 w-4 cursor-pointer accent-primary" />{option.label}</label>)}
-        </div>}
-      </div>
+        </div>
+        {ratingFilters.length > 0 && <button type="button" onClick={() => onRatingFiltersChange([])} className="text-[10px] font-medium text-primary hover:underline">Limpar classificação</button>}
+      </HiddenFilterGroup>
 
       <FilterSelect label="Preço" value={priceFilter} onChange={onPriceFilterChange} options={[{ value: "any", label: "Qualquer preço" }, { value: "1", label: "$ · Preço baixo" }, { value: "2", label: "$$ · Preço médio" }, { value: "3", label: "$$$ · Preço alto" }]} />
       <FilterSelect label="Ordenar por" value={sortKey} onChange={(value) => onSortKeyChange(value as SortKey)} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ value: key, label: SORT_LABELS[key] }))} />
