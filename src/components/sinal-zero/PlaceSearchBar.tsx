@@ -25,7 +25,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
   useEffect(() => {
     if (pickedLabelRef.current !== null && value === pickedLabelRef.current) return;
     const term = value.trim();
-    if (term.length < 2) {
+    if (term.length < 3) {
       setSuggestions([]);
       setOpen(false);
       setLoading(false);
@@ -53,7 +53,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
         .finally(() => {
           if (!cancelled && requestId === requestIdRef.current) setLoading(false);
         });
-    }, 220);
+    }, 300);
 
     return () => {
       cancelled = true;
@@ -105,7 +105,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
             setOpen(false);
           }
         }}
-        placeholder={currentLabel ?? "Buscar cidade, estado, país, bairro ou rua"}
+        placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"}
         aria-label="Buscar lugar no mapa"
         autoComplete="off"
         className="h-9 w-full rounded-full border border-border bg-background pl-9 pr-3 text-xs outline-none placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -114,7 +114,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
       {open && value !== pickedLabelRef.current && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 top-11 z-[900] overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
           <div className="border-b border-border/60 px-3 py-2 text-[10px] font-medium text-muted-foreground">
-            Sugestões de locais
+            Sugestões com maior correspondência
           </div>
           <ul className="max-h-72 overflow-y-auto">
             {suggestions.map((place, i) => (
