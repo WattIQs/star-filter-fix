@@ -91,6 +91,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
         }}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         onKeyDown={(e) => {
+          if (e.key === "Enter" && !open) return;
           if (!open || suggestions.length === 0) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -115,7 +116,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
       {open && value !== pickedLabelRef.current && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 top-11 z-[900] overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
           <div className="border-b border-border/60 px-3 py-2 text-[10px] font-medium text-muted-foreground">
-            Sugestões com maior correspondência
+            Selecione o local correto antes de varrer
           </div>
           <ul className="max-h-72 overflow-y-auto">
             {suggestions.map((place, i) => (
