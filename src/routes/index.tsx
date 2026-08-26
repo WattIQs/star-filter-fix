@@ -28,14 +28,16 @@ export const Route = createFileRoute("/")({
 const DEFAULT_CATEGORIES: CategoryKey[] = [];
 const MAX_SPAN = 0.10;
 
-function ratingMatchesFilter(rating: number | null, filter: string): boolean {
-  if (filter === "unrated") return rating === null;
-  if (filter === "any") return true;
-  if (rating === null) return false;
-  const stars = Number.parseInt(filter, 10);
-  if (!Number.isFinite(stars)) return true;
-  if (stars === 5) return rating >= 5;
-  return rating >= stars && rating < stars + 1;
+function ratingMatchesFilter(rating: number | null, filters: string[]): boolean {
+  if (filters.length === 0) return true;
+  if (rating === null) return filters.includes("unrated");
+  return filters.some((filter) => {
+    if (filter === "unrated") return false;
+    const stars = Number.parseInt(filter, 10);
+    if (!Number.isFinite(stars)) return true;
+    if (stars === 5) return rating >= 5;
+    return rating >= stars && rating < stars + 1;
+  });
 }
 
 function MapSkeleton() {
@@ -56,7 +58,7 @@ function hasWebsite(lead: Establishment): boolean {
 
 function Index() {
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
-  const [ratingFilter, setRatingFilter] = useState("any");
+  const [ratingFilters, setRatingFilters] = useState<string[]>([]);
   const [priceFilter, setPriceFilter] = useState("any");
   const [signalZeroOnly, setSignalZeroOnly] = useState(false);
   const [contactOnly, setContactOnly] = useState(false);
@@ -93,8 +95,6 @@ function Index() {
       const verified = await verifyLeadsServer({ data: { leads: candidates.slice(0, 40) } });
       if (scanId !== scanIdRef.current) return;
 
-      // Sinal Zero é o modo mais rigoroso: se a verificação externa não
-      // conseguiu confirmar os candidatos, não fingimos que eles são zero.
       if (!verified.external) {
         setVerificationMode("local");
         setResults([]);
@@ -218,7 +218,7 @@ function Index() {
     let list = results;
     if (contactOnly) list = list.filter(hasContact);
     if (websiteOnly) list = list.filter(hasWebsite);
-    list = list.filter((r) => ratingMatchesFilter(r.rating, ratingFilter));
+    list = list.filter((r) => ratingMatchesFilter(r.rating, ratingFilters));
     if (priceFilter !== "any") {
       const level = Number.parseInt(priceFilter, 10);
       list = list.filter((r) => r.priceLevel === level);
@@ -236,7 +236,7 @@ function Index() {
       }
     });
     return sorted;
-  }, [results, contactOnly, websiteOnly, ratingFilter, priceFilter, sortKey]);
+  }, [results, contactOnly, websiteOnly, ratingFilters, priceFilter, sortKey]);
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background text-foreground">
@@ -251,8 +251,8 @@ function Index() {
         <div className="flex shrink-0 items-center gap-1.5">
           <CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning} />
           <FiltersMenu
-            ratingFilter={ratingFilter}
-            onRatingFilterChange={setRatingFilter}
+            ratingFilters={ratingFilters}
+            onRatingFiltersChange={setRatingFilters}
             priceFilter={priceFilter}
             onPriceFilterChange={setPriceFilter}
             signalZeroOnly={signalZeroOnly}
