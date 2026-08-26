@@ -9,6 +9,7 @@ export interface LeadVerification {
   reasons: string[];
   checked: boolean;
   foundDigitalPresence: boolean;
+  foundWebsite: boolean;
   contactConfidence: "high" | "medium" | "low";
 }
 
@@ -150,35 +151,32 @@ function contactConfidence(lead: Establishment): "high" | "medium" | "low" {
 
 export async function verifyLead(lead: Establishment): Promise<LeadVerification> {
   const confidence = contactConfidence(lead);
-  if (!externalVerificationConfigured()) {
-    return {
-      status: "unverified",
-      score: 0,
-      reasons: ["Verificação web indisponível: configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX no Render."],
-      checked: false,
-      foundDigitalPresence: false,
-      contactConfidence: confidence,
-    };
-  }
+  const empty: LeadVerification = {
+    status: "unverified",
+    score: 0,
+    reasons: ["Verificação web indisponível: configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX no Render."],
+    checked: false,
+    foundDigitalPresence: false,
+    foundWebsite: false,
+    contactConfidence: confidence,
+  };
+
+  if (!externalVerificationConfigured()) return empty;
 
   const search = await searchLeadPresence(lead);
-  if (search.successfulQueries < 2 || search.items.length === 0) {
+  // Duas consultas bem-sucedidas são suficientes para concluir que não houve
+  // evidência encontrada. Resultado vazio do CSE não significa erro: é um
+  // resultado válido para uma busca de ausência.
+  if (search.successfulQueries < 2) {
     return {
-      status: "unverified",
-      score: 0,
-      reasons: [
-        search.successfulQueries < 2
-          ? "A busca web não respondeu com evidência suficiente para confirmar este negócio."
-          : "A busca respondeu, mas não trouxe evidência suficiente para confirmar este negócio.",
-      ],
-      checked: false,
-      foundDigitalPresence: false,
-      contactConfidence: confidence,
+      ...empty,
+      reasons: ["A busca web não respondeu com consultas suficientes para confirmar este negócio."],
     };
   }
 
   const reasons: string[] = [];
   let foundDigitalPresence = false;
+  let foundWebsite = false;
 
   for (const item of search.items) {
     const link = item.link ?? "";
@@ -199,16 +197,19 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
 
     if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.75) {
       foundDigitalPresence = true;
+      foundWebsite = true;
       reasons.push(`Possível site oficial encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`);
       break;
     }
   }
 
   if (foundDigitalPresence) {
-    return { status: "rejected", score: 0, reasons, checked: true, foundDigitalPresence: true, contactConfidence: confidence };
+    return { status: "rejected", score: 0, reasons, checked: true, foundDigitalPresence: true, foundWebsite, contactConfidence: confidence };
   }
 
-  reasons.push("Nenhuma presença digital comercial com correspondência forte foi encontrada nas consultas externas.");
+  reasons.push(search.items.length === 0
+    ? "As consultas externas responderam sem resultados correspondentes para presença digital comercial."
+    : "Nenhuma presença digital comercial com correspondência forte foi encontrada nas consultas externas.");
 
   return {
     status: "verified",
@@ -216,6 +217,7 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     reasons,
     checked: true,
     foundDigitalPresence: false,
+    foundWebsite: false,
     contactConfidence: confidence,
   };
 }
