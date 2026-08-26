@@ -59,13 +59,6 @@ function hasWebsite(lead: Establishment): boolean {
   return Boolean(lead.signals.website || lead.contact.websiteUrl);
 }
 
-function hasDigitalPresence(lead: Establishment): boolean {
-  return Boolean(
-    hasWebsite(lead) || lead.signals.instagram || lead.signals.facebook ||
-    lead.contact.instagramUrl || lead.contact.facebookUrl
-  );
-}
-
 function MapSkeleton() {
   return <div className="flex h-full w-full items-center justify-center bg-muted/30"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
 }
@@ -94,51 +87,33 @@ function Index() {
     setSavedLeads(getSavedLeads());
   }, []);
 
-  const filterByCategory = (leads: Establishment[], selected = categories) =>
-    leads.filter((lead) => categoryMatches(lead, selected));
+  const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
 
-  const applyPresenceFilter = (leads: Establishment[], signalZero: boolean, noWebsite: boolean) =>
-    leads.filter((lead) => {
-      if (signalZero && lead.level !== "zero") return false;
-      if (noWebsite && hasWebsite(lead)) return false;
-      return true;
-    });
+  const applyPresenceFilter = (leads: Establishment[], signalZero: boolean, noWebsite: boolean) => leads.filter((lead) => {
+    if (signalZero && lead.level !== "zero") return false;
+    if (noWebsite && hasWebsite(lead)) return false;
+    return true;
+  });
 
-  const verifyPresence = async (
-    leads: Establishment[],
-    scanId: number,
-    signalZero: boolean,
-    noWebsite: boolean,
-    mode: VerificationMode,
-  ) => {
+  const verifyPresence = async (leads: Establishment[], scanId: number, signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
     if (scanId !== scanIdRef.current) return;
-
-    // The important fix: presence filters are useful even without Google Search.
-    // Sinal Zero is determined from OSM's actual signals; no-site is determined
-    // from the website fields in the establishment. External verification only
-    // improves confidence when configured and never turns a usable local result
-    // into an empty list just because the API is unavailable.
     const localCandidates = applyPresenceFilter(leads, signalZero, noWebsite);
     setVerificationMode("off");
     setResults(localCandidates);
     setError(localCandidates.length === 0 ? (
-      mode === "signal-zero"
-        ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa."
-        : mode === "no-website"
-          ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa."
-          : "Nenhum estabelecimento satisfaz os filtros de presença selecionados."
+      mode === "signal-zero" ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa." :
+      mode === "no-website" ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa." :
+      "Nenhum estabelecimento satisfaz os filtros de presença selecionados."
     ) : null);
 
-    if (!localCandidates.length || !process.env) return;
+    // Never access process.env in the browser. Server-side configuration is
+    // already handled by verifyLeadsServer/externalVerificationConfigured.
+    if (!localCandidates.length) return;
 
     try {
       const verified = await verifyLeadsServer({ data: { leads: localCandidates } });
       if (scanId !== scanIdRef.current) return;
-
-      if (!verified.external) {
-        // Keep local results. Missing external credentials must not break filters.
-        return;
-      }
+      if (!verified.external) return;
 
       setVerificationMode("external");
       const refined = verified.leads.filter((lead) => {
@@ -150,17 +125,11 @@ function Index() {
       setResults(refined);
       setError(refined.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
     } catch {
-      // External verification is an enhancement, not a prerequisite.
       if (scanId === scanIdRef.current) setVerificationMode("off");
     }
   };
 
-  const runVerificationForCurrentFilters = (
-    signalZero: boolean,
-    noWebsite: boolean,
-    source = allResults,
-    selected = categories,
-  ) => {
+  const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults, selected = categories) => {
     const categoryResults = filterByCategory(source, selected);
     const scanId = ++scanIdRef.current;
     setError(null);
@@ -188,13 +157,7 @@ function Index() {
     setCenter({ lat: target.lat, lon: target.lon });
     setVerificationMode("off");
     setMobileView("leads");
-    const area = target.boundingBox ?? {
-      south: target.lat - 0.05,
-      north: target.lat + 0.05,
-      west: target.lon - 0.05,
-      east: target.lon + 0.05,
-    };
-
+    const area = target.boundingBox ?? { south: target.lat - 0.05, north: target.lat + 0.05, west: target.lon - 0.05, east: target.lon + 0.05 };
     try {
       const data = await searchOverpassServer({ data: { area, categories } });
       if (scanId !== scanIdRef.current) return;
@@ -272,11 +235,7 @@ function Index() {
         case "price_desc": return (b.priceLevel ?? 0) - (a.priceLevel ?? 0);
         case "price_asc": return (a.priceLevel ?? 99) - (b.priceLevel ?? 99);
         case "name_asc": return a.name.localeCompare(b.name, "pt-BR");
-        default:
-          return (a.signalCount - b.signalCount) ||
-            (Number(b.contactable) - Number(a.contactable)) ||
-            ((b.rating ?? -1) - (a.rating ?? -1)) ||
-            a.name.localeCompare(b.name, "pt-BR");
+        default: return (a.signalCount - b.signalCount) || (Number(b.contactable) - Number(a.contactable)) || ((b.rating ?? -1) - (a.rating ?? -1)) || a.name.localeCompare(b.name, "pt-BR");
       }
     });
     return sorted;
