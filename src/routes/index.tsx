@@ -128,7 +128,7 @@ function Index() {
 
     try {
       const data = await searchOverpassServer({
-        data: { area, categories: cats, signalZeroOnly: false },
+        data: { area, categories: cats, signalZeroOnly },
       });
       if (scanId !== scanIdRef.current) return;
 
@@ -137,7 +137,9 @@ function Index() {
 
       if (processed.length === 0) {
         setResults([]);
-        setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
+        setError(signalZeroOnly
+          ? "Nenhum candidato Sinal Zero foi encontrado nessa área."
+          : "Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
         return;
       }
 
