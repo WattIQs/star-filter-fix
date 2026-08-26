@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { BoundingBox, CategoryKey, Establishment } from "./types";
+import { CATEGORIES } from "./types";
 import { buildOverpassQuery } from "./overpass-query";
 import { fetchWithTimeout, OSM_UA, OVERPASS_MIRRORS } from "./geo.server";
 import { externalVerificationConfigured, verifyLeads, type LeadVerification } from "./web-verification";
@@ -76,6 +77,55 @@ async function queryPlaces(q: string): Promise<NominatimResult[]> {
   return (await response.json()) as NominatimResult[];
 }
 
+function buildAroundQuery(lat: number, lon: number, categories: CategoryKey[]): string {
+  const radius = 15000;
+  const byKey = new Map<string, Set<string>>();
+
+  for (const category of categories) {
+    for (const filter of CATEGORIES[category]?.filters ?? []) {
+      const values = byKey.get(filter.key) ?? new Set<string>();
+      filter.values.forEach((value) => values.add(value));
+      byKey.set(filter.key, values);
+    }
+  }
+
+  if (byKey.size === 0) {
+    return `[out:json][timeout:20];\n(\nnwr["name"]["amenity"](around:${radius},${lat},${lon});\nnwr["name"]["shop"](around:${radius},${lat},${lon});\nnwr["name"]["leisure"](around:${radius},${lat},${lon});\n);\nout tags center 2000;`;
+  }
+
+  const blocks: string[] = [];
+  for (const [key, values] of byKey) {
+    const escaped = [...values]
+      .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    blocks.push(`nwr["${key}"~"^(${escaped})$"](around:${radius},${lat},${lon});`);
+  }
+
+  return `[out:json][timeout:20];\n(\n${blocks.join("\n")}\n);\nout tags center 2200;`;
+}
+
+async function queryOverpass(query: string): Promise<OverpassElement[] | null> {
+  for (const mirror of OVERPASS_MIRRORS) {
+    try {
+      const response = await fetchWithTimeout(
+        mirror,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA },
+          body: `data=${encodeURIComponent(query)}`,
+        },
+        22000,
+      );
+      if (!response.ok) continue;
+      const json = (await response.json()) as { elements?: OverpassElement[] };
+      return json.elements ?? [];
+    } catch {
+      // Continue with another Overpass mirror.
+    }
+  }
+  return null;
+}
+
 export const searchPlacesServer = createServerFn({ method: "POST" })
   .validator((data: { q: string }) => data)
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
@@ -97,35 +147,29 @@ export const searchPlacesServer = createServerFn({ method: "POST" })
 export const searchOverpassServer = createServerFn({ method: "POST" })
   .validator((data: { area: BoundingBox; categories: CategoryKey[]; signalZeroOnly?: boolean }) => data)
   .handler(async ({ data }): Promise<{ elements: OverpassElement[] }> => {
-    const query = buildOverpassQuery(data.area, data.categories, data.signalZeroOnly === true);
-    const errors: string[] = [];
-    for (const mirror of OVERPASS_MIRRORS) {
-      try {
-        const response = await fetchWithTimeout(
-          mirror,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OSM_UA },
-            body: `data=${encodeURIComponent(query)}`,
-          },
-          18000,
-        );
-        if (!response.ok) {
-          errors.push(`${new URL(mirror).hostname}: ${response.status}`);
-          continue;
-        }
-        const json = (await response.json()) as { elements?: OverpassElement[] };
-        return { elements: json.elements ?? [] };
-      } catch (error) {
-        errors.push(`${new URL(mirror).hostname}: ${(error as Error).message}`);
-      }
-    }
-    throw new Error("Não foi possível concluir a varredura agora. O OpenStreetMap está demorando para responder; tente novamente em alguns segundos.");
+    const primary = await queryOverpass(buildOverpassQuery(data.area, data.categories, data.signalZeroOnly === true));
+    if (primary && primary.length > 0) return { elements: primary };
+
+    // Fallback espacial: se uma bbox do Nominatim vier estreita, incompleta ou
+    // não casar bem com os objetos OSM, procuramos num raio de 15 km do centro.
+    // A busca continua independente do filtro Sinal Zero.
+    const centerLat = (data.area.south + data.area.north) / 2;
+    const centerLon = (data.area.west + data.area.east) / 2;
+    const fallback = await queryOverpass(buildAroundQuery(centerLat, centerLon, data.categories));
+
+    if (fallback && fallback.length > 0) return { elements: fallback };
+    if (primary !== null || fallback !== null) return { elements: [] };
+
+    throw new Error("Não foi possível consultar o OpenStreetMap agora. Tente novamente em alguns segundos.");
   });
 
 export const verifyLeadsServer = createServerFn({ method: "POST" })
   .validator((data: { leads: Establishment[] }) => data)
-  .handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean; healthy: boolean }> => {
+  .handler(async ({ data }): Promise<{
+    leads: (Establishment & { verification: LeadVerification })[];
+    external: boolean;
+    healthy: boolean;
+  }> => {
     if (!externalVerificationConfigured()) {
       return {
         leads: data.leads.map((lead) => ({
