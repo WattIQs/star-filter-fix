@@ -9,6 +9,7 @@ export interface LeadVerification {
   reasons: string[];
   checked: boolean;
   foundDigitalPresence: boolean;
+  foundWebsite: boolean;
   contactConfidence: "high" | "medium" | "low";
 }
 
@@ -99,8 +100,6 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
   const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
   const phone = lead.contact.phoneDigits ?? "";
 
-  // Três buscas com funções diferentes: redes sociais, site próprio e
-  // identidade por endereço/telefone. Isso melhora a precisão sem dobrar o delay.
   const queries = [
     `"${cleanName}" "${location}" (site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com)`,
     `"${cleanName}" "${location}" "${address}" -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br`,
@@ -122,35 +121,29 @@ function contactConfidence(lead: Establishment): "high" | "medium" | "low" {
 
 export async function verifyLead(lead: Establishment): Promise<LeadVerification> {
   const confidence = contactConfidence(lead);
-  if (!externalVerificationConfigured()) {
-    return {
-      status: "unverified",
-      score: 0,
-      reasons: ["Verificação externa não configurada."],
-      checked: false,
-      foundDigitalPresence: false,
-      contactConfidence: confidence,
-    };
-  }
+  const base: LeadVerification = {
+    status: "unverified",
+    score: 0,
+    reasons: ["Verificação externa não configurada."],
+    checked: false,
+    foundDigitalPresence: false,
+    foundWebsite: false,
+    contactConfidence: confidence,
+  };
+
+  if (!externalVerificationConfigured()) return base;
 
   const search = await searchLeadPresence(lead);
   if (search.successfulQueries < 2 || search.items.length === 0) {
     return {
-      status: "unverified",
-      score: 0,
-      reasons: [
-        search.successfulQueries < 2
-          ? "Não houve consultas externas suficientes para confirmar a ausência de presença digital."
-          : "O mecanismo respondeu, mas não retornou evidência suficiente para verificar este negócio.",
-      ],
-      checked: false,
-      foundDigitalPresence: false,
-      contactConfidence: confidence,
+      ...base,
+      reasons: ["Não houve consultas externas suficientes para confirmar a presença digital deste negócio."],
     };
   }
 
   const reasons: string[] = [];
   let foundDigitalPresence = false;
+  let foundWebsite = false;
 
   for (const item of search.items) {
     const link = item.link ?? "";
@@ -166,35 +159,28 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     if (isSocial(link) && combinedMatch >= 0.55) {
       foundDigitalPresence = true;
       reasons.push(`Presença social encontrada com correspondência de ${Math.round(combinedMatch * 100)}%.`);
-      break;
+      continue;
     }
 
     if (!isSocial(link) && !isDirectory(link) && combinedMatch >= 0.75) {
       foundDigitalPresence = true;
-      reasons.push(`Possível site oficial encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`);
-      break;
+      foundWebsite = true;
+      reasons.push(`Site oficial encontrado com correspondência de ${Math.round(combinedMatch * 100)}%.`);
     }
   }
 
-  if (foundDigitalPresence) {
-    return { status: "rejected", score: 0, reasons, checked: true, foundDigitalPresence: true, contactConfidence: confidence };
-  }
-
-  reasons.push("Nenhuma presença digital comercial com correspondência forte foi encontrada nas consultas externas.");
-
   return {
     status: "verified",
-    score: 100,
-    reasons,
+    score: foundDigitalPresence ? 0 : 100,
+    reasons: foundDigitalPresence ? reasons : ["Nenhum site ou presença digital comercial com correspondência forte foi encontrado nas consultas externas."],
     checked: true,
-    foundDigitalPresence: false,
+    foundDigitalPresence,
+    foundWebsite,
     contactConfidence: confidence,
   };
 }
 
-export async function verifyLeads(
-  leads: Establishment[],
-): Promise<(Establishment & { verification: LeadVerification })[]> {
+export async function verifyLeads(leads: Establishment[]): Promise<(Establishment & { verification: LeadVerification })[]> {
   const output: (Establishment & { verification: LeadVerification })[] = [];
   const concurrency = 3;
   for (let i = 0; i < leads.length; i += concurrency) {
