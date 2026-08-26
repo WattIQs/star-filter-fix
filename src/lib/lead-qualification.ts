@@ -1,10 +1,4 @@
-import type {
-  CategoryKey,
-  Establishment,
-  EstablishmentContact,
-  EstablishmentDetails,
-  SignalLevel,
-} from "./types";
+import type { CategoryKey, Establishment, EstablishmentContact, EstablishmentDetails, SignalLevel } from "./types";
 import { CATEGORIES, OSM_VALUE_LABELS } from "./types";
 
 function getTag(tags: Record<string, string>, keys: string[]): string | null {
@@ -159,15 +153,6 @@ function extractPriceLevel(tags: Record<string, string>): 1 | 2 | 3 | null {
   return Number.isFinite(num) ? (num <= 30 ? 1 : num <= 90 ? 2 : 3) : null;
 }
 
-function inferPriceLevel(tags: Record<string, string>, categoryKey: CategoryKey | null): 1 | 2 | 3 | null {
-  const cuisine = normalizeText(tags["cuisine"]); const name = normalizeText(tags["name"]);
-  if (/(steak|steakhouse|japanese|sushi|seafood|wine|bistro|gourmet|emporio|empório)/.test(cuisine)) return 3;
-  if (/(outback|madero|coco bambu)/.test(name)) return 3;
-  if (categoryKey === "fast_food" || categoryKey === "bakery" || categoryKey === "cafe" || categoryKey === "convenience") return 1;
-  if (categoryKey === "restaurant" || categoryKey === "bar" || categoryKey === "pub") return 2;
-  return categoryKey ? 2 : null;
-}
-
 function buildAddress(tags: Record<string, string>): string {
   const parts: string[] = [];
   const street = tags["addr:street"]; const housenumber = tags["addr:housenumber"];
@@ -179,17 +164,17 @@ function buildAddress(tags: Record<string, string>): string {
 }
 
 function resolveCategory(tags: Record<string, string>): { label: string; key: CategoryKey | null } {
-  const osmValue = tags["amenity"] ?? tags["shop"] ?? tags["leisure"] ?? "";
-  let key: CategoryKey | null = null;
+  const matches: CategoryKey[] = [];
   for (const candidate of Object.keys(CATEGORIES) as CategoryKey[]) {
     const def = CATEGORIES[candidate];
     if (def.filters.some((filter) => tags[filter.key] !== undefined && filter.values.includes(tags[filter.key] as string))) {
-      key = candidate;
-      break;
+      matches.push(candidate);
     }
   }
-  const label = OSM_VALUE_LABELS[osmValue] ?? (key ? CATEGORIES[key].label : osmValue.replace(/_/g, " ") || "Estabelecimento");
-  return { label, key };
+  const primary = matches[0] ?? null;
+  const osmValue = tags["amenity"] ?? tags["shop"] ?? tags["leisure"] ?? "";
+  const label = OSM_VALUE_LABELS[osmValue] ?? (primary ? CATEGORIES[primary].label : osmValue.replace(/_/g, " ") || "Estabelecimento");
+  return { label, key: primary };
 }
 
 export function processOverpassResults(
@@ -218,7 +203,7 @@ export function processOverpassResults(
     const details = buildDetails(tags);
     const contact = buildContact(tags);
     const rating = extractRating(tags);
-    const priceLevel = extractPriceLevel(tags) ?? inferPriceLevel(tags, resolved.key);
+    const priceLevel = extractPriceLevel(tags);
 
     results.push({
       id,
