@@ -64,8 +64,7 @@ function isDirectory(link: string): boolean {
     return [
       "tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com",
       "google.com", "google.com.br", "wikipedia.org", "wikidata.org", "openstreetmap.org",
-    ].some((domain) => host === domain || host.endsWith(`.${domain}`),
-    );
+    ].some((domain) => host === domain || host.endsWith(`.${domain}`));
   } catch {
     return true;
   }
@@ -84,14 +83,27 @@ async function googleSearch(query: string): Promise<SearchResponse> {
   url.searchParams.set("hl", "pt-BR");
   url.searchParams.set("gl", "br");
 
-  try {
-    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 3500);
-    if (!response.ok) return { items: [], ok: false };
-    const data = (await response.json()) as { items?: SearchItem[] };
-    return { items: data.items ?? [], ok: true };
-  } catch {
-    return { items: [], ok: false };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }, 3200);
+      if (response.ok) {
+        const data = (await response.json()) as { items?: SearchItem[] };
+        return { items: data.items ?? [], ok: true };
+      }
+      if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        continue;
+      }
+      return { items: [], ok: false };
+    } catch {
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        continue;
+      }
+      return { items: [], ok: false };
+    }
   }
+  return { items: [], ok: false };
 }
 
 async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchItem[]; successfulQueries: number }> {
@@ -106,14 +118,10 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
     ? `"${phone}" "${cleanName}"`
     : `"${cleanName}" "${location}" "${address}" official`;
 
-  // Primeira rodada: duas consultas independentes em paralelo. Na maioria dos
-  // casos isso resolve a decisão sem gastar uma terceira chamada.
   const firstPass = await Promise.all([googleSearch(socialQuery), googleSearch(websiteQuery)]);
   const firstItems = firstPass.flatMap((batch) => batch.items);
   const firstSuccessful = firstPass.filter((batch) => batch.ok).length;
 
-  // Se não apareceu nada forte, a terceira consulta ajuda a resolver nomes
-  // parecidos/duplicados. Ela só roda quando realmente é necessária.
   const firstPassHasEvidence = firstItems.some((item) => {
     const link = item.link ?? "";
     if (!link) return false;
@@ -123,7 +131,7 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
     return (isSocial(link) && match >= 0.55) || (!isSocial(link) && !isDirectory(link) && match >= 0.75);
   });
 
-  if (firstPassHasEvidence) {
+  if (firstPassHasEvidence || firstSuccessful < 2) {
     return { items: firstItems, successfulQueries: firstSuccessful };
   }
 
@@ -216,9 +224,7 @@ export async function verifyLeads(
   leads: Establishment[],
 ): Promise<(Establishment & { verification: LeadVerification })[]> {
   const output: (Establishment & { verification: LeadVerification })[] = [];
-  // Mais paralelismo reduz bastante o tempo total quando há muitos candidatos,
-  // sem disparar dezenas de chamadas simultâneas de uma vez.
-  const concurrency = 6;
+  const concurrency = 8;
   for (let i = 0; i < leads.length; i += concurrency) {
     const batch = leads.slice(i, i + concurrency);
     const verified = await Promise.all(batch.map(async (lead) => ({ ...lead, verification: await verifyLead(lead) })));
