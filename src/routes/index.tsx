@@ -1,7 +1,7 @@
-import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly, useServerFn } from "@tanstack/react-router";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Map, Radar, Rows3 } from "lucide-react";
-import { searchOverpassServer, type PlaceSuggestion } from "@/lib/geo.functions";
+import { searchOverpassServer, verifyLeadsServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
 import { getSavedLeads, isLeadSaved, removeLead, saveLead } from "@/lib/saved-leads";
 import type { CategoryKey, Establishment, SavedLead, SortKey } from "@/lib/types";
@@ -33,7 +33,7 @@ function ratingMatchesFilter(rating: number | null, filters: string[]): boolean 
     if (filter === "unrated") return false;
     const stars = Number.parseInt(filter, 10);
     if (!Number.isFinite(stars)) return false;
-    return stars === 5 ? rating >= 5 : rating >= stars && rating < stars + 1;
+    return rating === stars;
   });
 }
 
@@ -67,6 +67,8 @@ function MapSkeleton() {
 }
 
 function Index() {
+  const searchPlaces = useServerFn(searchOverpassServer);
+  const verifyLeads = useServerFn(verifyLeadsServer);
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
   const [ratingFilters, setRatingFilters] = useState<string[]>([]);
   const [priceFilter, setPriceFilter] = useState("any");
@@ -75,6 +77,7 @@ function Index() {
   const [noWebsiteOnly, setNoWebsiteOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("relevance");
   const [scanning, setScanning] = useState(false);
+  const [verifyingPresence, setVerifyingPresence] = useState(false);
   const [results, setResults] = useState<Establishment[]>([]);
   const [allResults, setAllResults] = useState<Establishment[]>([]);
   const [savedLeads, setSavedLeads] = useState<SavedLead[]>([]);
@@ -84,6 +87,7 @@ function Index() {
   const [place, setPlace] = useState<PlaceSuggestion | null>(null);
   const [mobileView, setMobileView] = useState<"leads" | "map">("leads");
   const scanIdRef = useRef(0);
+  const verificationCacheRef = useRef(new Map<string, Establishment>());
 
   useEffect(() => {
     setSavedLeads(getSavedLeads());
@@ -97,10 +101,48 @@ function Index() {
     setError(next.length === 0 && source.length > 0 ? "Nenhum resultado para os filtros atuais." : null);
   };
 
+  const enrichPresence = async (source: Establishment[], scanId?: number): Promise<Establishment[] | null> => {
+    const missing = source.filter((lead) => !verificationCacheRef.current.has(lead.id));
+    if (missing.length === 0) return source.map((lead) => verificationCacheRef.current.get(lead.id) ?? lead);
+
+    setVerifyingPresence(true);
+    setError(null);
+    try {
+      const response = await verifyLeads({ data: { leads: missing } });
+      if (!response.external) throw new Error("A verificação Google não está configurada no servidor.");
+      if (scanId !== undefined && scanId !== scanIdRef.current) return null;
+      for (const lead of response.leads) verificationCacheRef.current.set(lead.id, lead);
+      return source.map((lead) => verificationCacheRef.current.get(lead.id) ?? lead);
+    } catch (err) {
+      if (scanId === undefined || scanId === scanIdRef.current) {
+        setError(err instanceof Error ? err.message : "Não foi possível verificar a presença digital.");
+      }
+      return null;
+    } finally {
+      if (scanId === undefined || scanId === scanIdRef.current) setVerifyingPresence(false);
+    }
+  };
+
+  const refreshPresenceFilters = async (source: Establishment[], signalZero = signalZeroOnly, noWebsite = noWebsiteOnly) => {
+    const needsVerification = signalZero || noWebsite || contactOnly;
+    if (!needsVerification) {
+      applyCurrentFilters(source, categories, signalZero, noWebsite);
+      return;
+    }
+    setResults([]);
+    const enriched = await enrichPresence(source);
+    if (enriched) {
+      setAllResults(enriched);
+      applyCurrentFilters(enriched, categories, signalZero, noWebsite);
+    }
+  };
+
   const runScan = async (target: PlaceSuggestion) => {
     const scanId = ++scanIdRef.current;
+    verificationCacheRef.current.clear();
     setError(null);
     setScanning(true);
+    setVerifyingPresence(false);
     setResults([]);
     setAllResults([]);
     setSelectedId(null);
@@ -108,11 +150,21 @@ function Index() {
     setMobileView("leads");
 
     try {
-      const data = await searchOverpassServer({ data: { area: target.boundingBox ?? { south: target.lat - 0.025, north: target.lat + 0.025, west: target.lon - 0.03, east: target.lon + 0.03 }, categories } });
+      const data = await searchPlaces({ data: { area: target.boundingBox ?? { south: target.lat - 0.025, north: target.lat + 0.025, west: target.lon - 0.03, east: target.lon + 0.03 }, categories } });
       if (scanId !== scanIdRef.current) return;
       const processed = processOverpassResults(data.elements, categories);
-      setAllResults(processed);
-      setResults(processed);
+      if (signalZeroOnly || contactOnly || noWebsiteOnly) {
+        setResults([]);
+        const enriched = await enrichPresence(processed, scanId);
+        if (scanId !== scanIdRef.current) return;
+        if (enriched) {
+          setAllResults(enriched);
+          applyCurrentFilters(enriched, categories, signalZeroOnly, noWebsiteOnly);
+        }
+      } else {
+        setAllResults(processed);
+        setResults(processed);
+      }
       if (processed.length === 0) setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
     } catch (err) {
       if (scanId !== scanIdRef.current) return;
@@ -136,7 +188,7 @@ function Index() {
   const handleCategoriesChange = (next: CategoryKey[]) => {
     setCategories(next);
     setError(null);
-    if (allResults.length > 0) applyCurrentFilters(allResults, next);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalZeroOnly, noWebsiteOnly);
   };
 
   const handleToggleSave = (lead: Establishment) => {
@@ -146,12 +198,17 @@ function Index() {
 
   const handleSignalZeroChange = (enabled: boolean) => {
     setSignalZeroOnly(enabled);
-    if (allResults.length > 0) applyCurrentFilters(allResults, categories, enabled, noWebsiteOnly);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, enabled, noWebsiteOnly);
+  };
+
+  const handleContactChange = (enabled: boolean) => {
+    setContactOnly(enabled);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalZeroOnly, noWebsiteOnly);
   };
 
   const handleNoWebsiteChange = (enabled: boolean) => {
     setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) applyCurrentFilters(allResults, categories, signalZeroOnly, enabled);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalZeroOnly, enabled);
   };
 
   const visibleResults = useMemo(() => {
@@ -179,13 +236,13 @@ function Index() {
   return (
     <div className="flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground lg:h-screen">
       <header className="relative z-[3000] shrink-0 border-b border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur lg:flex lg:min-h-14 lg:items-center lg:gap-3 lg:px-3">
-        <div className="flex min-w-0 items-center gap-2"><div className="flex shrink-0 items-center gap-2"><Radar className="h-5 w-5 text-signal-zero" /><span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span></div><div className="min-w-0 flex-1 lg:hidden"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning} currentLabel={place?.shortLabel ?? null} /></div></div>
-        <div className="mt-2 min-w-0 lg:mt-0 lg:flex-1 lg:block"><div className="hidden lg:block"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning} currentLabel={place?.shortLabel ?? null} /></div></div>
-        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalZeroOnly={signalZeroOnly} onSignalZeroOnlyChange={handleSignalZeroChange} contactOnly={contactOnly} onContactOnlyChange={setContactOnly} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /><ExportCsvButton /></div></div>
+        <div className="flex min-w-0 items-center gap-2"><div className="flex shrink-0 items-center gap-2"><Radar className="h-5 w-5 text-signal-zero" /><span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span></div><div className="min-w-0 flex-1 lg:hidden"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
+        <div className="mt-2 min-w-0 lg:mt-0 lg:flex-1 lg:block"><div className="hidden lg:block"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
+        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalZeroOnly={signalZeroOnly} onSignalZeroOnlyChange={handleSignalZeroChange} contactOnly={contactOnly} onContactOnlyChange={handleContactChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /><ExportCsvButton /></div></div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:relative lg:flex-row lg:gap-3 lg:p-3">
         <div className="flex shrink-0 border-b border-border bg-card px-2 py-1.5 lg:hidden"><div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Área de trabalho"><button type="button" role="tab" aria-selected={mobileView === "leads"} onClick={() => setMobileView("leads")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "leads" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Rows3 className="h-4 w-4" />Leads <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{visibleResults.length}</span></button><button type="button" role="tab" aria-selected={mobileView === "map"} onClick={() => setMobileView("map")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "map" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Map className="h-4 w-4" />Mapa</button></div></div>
-        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}><div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly && noWebsiteOnly ? "Sinal Zero + sem site" : signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2></div><span className="text-xs text-muted-foreground">{visibleResults.length}</span></div><div className="min-h-0 flex-1 overflow-auto p-2"><Suspense fallback={<MapSkeleton />}><div className="space-y-2">{visibleResults.map((place) => <PlaceRow key={place.id} place={place} active={selectedId === place.id} saved={savedLeads.some((saved) => saved.id === place.id)} onSelect={() => setSelectedId(place.id)} onToggleSave={handleToggleSave} />)}</div></Suspense>{visibleResults.length === 0 && !scanning && <div className="p-6 text-center text-sm text-muted-foreground">{error ?? "Nenhum resultado para os filtros atuais."}</div>}{scanning && <div className="flex items-center justify-center p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Pesquisando...</div>}</div></aside>
+        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}><div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly && noWebsiteOnly ? "Sinal Zero + sem site" : signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2></div><span className="text-xs text-muted-foreground">{visibleResults.length}</span></div><div className="min-h-0 flex-1 overflow-auto p-2"><Suspense fallback={<MapSkeleton />}><div className="space-y-2">{visibleResults.map((place) => <PlaceRow key={place.id} place={place} active={selectedId === place.id} saved={savedLeads.some((saved) => saved.id === place.id)} onSelect={() => setSelectedId(place.id)} onToggleSave={handleToggleSave} />)}</div></Suspense>{visibleResults.length === 0 && !scanning && !verifyingPresence && <div className="p-6 text-center text-sm text-muted-foreground">{error ?? "Nenhum resultado para os filtros atuais."}</div>}{(scanning || verifyingPresence) && <div className="flex items-center justify-center p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />{scanning ? "Pesquisando..." : "Verificando presença digital..."}</div>}</div></aside>
         <section className={`relative min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/20 ${mobileView === "map" ? "" : "hidden lg:block"}`}><ClientOnly fallback={<MapSkeleton />}><MapCanvas center={center} places={visibleResults} selectedId={selectedId} onSelect={setSelectedId} /></ClientOnly></section>
       </div>
     </div>
