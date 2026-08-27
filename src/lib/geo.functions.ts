@@ -34,7 +34,11 @@ function rankPlaceResults(q: string, rs: NominatimResult[]) { const qn = normali
 
 async function queryPlaces(q: string): Promise<NominatimResult[]> {
   const u = new URL("https://nominatim.openstreetmap.org/search");
-  [["format", "jsonv2"], ["limit", "20"], ["q", q], ["countrycodes", "br"], ["accept-language", "pt-BR"], ["addressdetails", "1"], ["namedetails", "1"], ["dedupe", "1"]].forEach(([k, v]) => u.searchParams.set(k, v));
+  const params: Array<[string, string]> = [
+    ["format", "jsonv2"], ["limit", "20"], ["q", q], ["countrycodes", "br"],
+    ["accept-language", "pt-BR"], ["addressdetails", "1"], ["namedetails", "1"], ["dedupe", "1"],
+  ];
+  for (const [k, v] of params) u.searchParams.set(k, v);
   try { const r = await fetchWithTimeout(u.toString(), { headers: { Accept: "application/json", "User-Agent": OSM_UA } }, 8000); if (!r.ok) return []; return await r.json() as NominatimResult[]; } catch { return []; }
 }
 
