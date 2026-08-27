@@ -20,7 +20,7 @@ function hasTag(tags: Record<string, string>, keys: string[]): boolean {
 }
 
 function hasWellKnownBrand(tags: Record<string, string>): boolean {
-  const haystack = normalizeText([tags.name, tags.brand, tags.operator, tags.official_name].filter(Boolean).join(" "));
+  const haystack = normalizeText([tags["name"], tags["brand"], tags["operator"], tags["official_name"]].filter(Boolean).join(" "));
   return !!haystack && WELL_KNOWN_BRANDS.some((brand) => {
     const normalized = normalizeText(brand);
     return haystack === normalized || haystack.includes(normalized);
@@ -29,7 +29,7 @@ function hasWellKnownBrand(tags: Record<string, string>): boolean {
 
 export function classifySignals(tags: Record<string, string>, contact?: EstablishmentContact) {
   const website = hasTag(tags, ["website", "contact:website", "url", "contact:url"]);
-  const instagram = hasTag(tags, ["contact:instagram", "instagram"]);
+  const instagram = Boolean(contact?.instagramUrl) || hasTag(tags, ["contact:instagram", "instagram"]);
   const facebook = hasTag(tags, ["contact:facebook", "facebook"]);
   const email = hasTag(tags, ["email", "contact:email"]);
   const phone = hasTag(tags, ["phone", "contact:phone", "contact:mobile", "mobile"]);
@@ -94,7 +94,7 @@ function buildDetails(tags: Record<string, string>): EstablishmentDetails { retu
 function extractRating(tags: Record<string, string>): number | null { const raw = getTag(tags, ["stars", "rating", "rating:average"]); if (!raw) return null; const value = Number.parseFloat(raw.replace(",", ".").replace(/[^\d.]/g, "")); return Number.isFinite(value) && value > 0 ? Math.min(5, Math.round(value * 10) / 10) : null; }
 function extractPriceLevel(tags: Record<string, string>): 1 | 2 | 3 | null { const raw = getTag(tags, ["price_range", "price", "price:level"]); if (!raw) return null; const value = raw.toLowerCase(); if (/^\$+$/.test(value) || /^€+$/.test(value)) return Math.min(3, Math.max(1, (value.match(/[$€]/g) ?? []).length)) as 1 | 2 | 3; if (/cheap|budget|low|barato|econ/.test(value)) return 1; if (/moderate|medium|mid|m[eé]dio/.test(value)) return 2; if (/expensive|high|luxury|caro|alto/.test(value)) return 3; const num = Number.parseFloat(value.replace(",", ".")); return Number.isFinite(num) ? num <= 30 ? 1 : num <= 90 ? 2 : 3 : null; }
 function buildAddress(tags: Record<string, string>): string { const parts: string[] = []; const street = tags["addr:street"], number = tags["addr:housenumber"]; if (street) parts.push(number ? `${street}, ${number}` : street); const suburb = tags["addr:suburb"] ?? tags["addr:neighbourhood"]; if (suburb) parts.push(suburb); if (tags["addr:city"]) parts.push(tags["addr:city"]); if (tags["addr:state"]) parts.push(tags["addr:state"]); return parts.join(" · ") || ""; }
-function resolveCategory(tags: Record<string, string>): { label: string; key: CategoryKey | null } { const matches = (Object.keys(CATEGORIES) as CategoryKey[]).filter((candidate) => CATEGORIES[candidate].filters.some((filter) => tags[filter.key] !== undefined && filter.values.includes(tags[filter.key] as string))); const key = matches[0] ?? null; const osmValue = tags.amenity ?? tags.shop ?? tags.leisure ?? ""; return { label: OSM_VALUE_LABELS[osmValue] ?? (key ? CATEGORIES[key].label : osmValue.replace(/_/g, " ") || "Estabelecimento"), key }; }
+function resolveCategory(tags: Record<string, string>): { label: string; key: CategoryKey | null } { const matches = (Object.keys(CATEGORIES) as CategoryKey[]).filter((candidate) => CATEGORIES[candidate].filters.some((filter) => tags[filter.key] !== undefined && filter.values.includes(tags[filter.key] as string))); const key = matches[0] ?? null; const osmValue = tags["amenity"] ?? tags["shop"] ?? tags["leisure"] ?? ""; return { label: OSM_VALUE_LABELS[osmValue] ?? (key ? CATEGORIES[key].label : osmValue.replace(/_/g, " ") || "Estabelecimento"), key }; }
 
 export function processOverpassResults(elements: Array<{ type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }>, categories: CategoryKey[]): Establishment[] {
   const categorySet = new Set(categories), seen = new Set<string>(), results: Establishment[] = [];
