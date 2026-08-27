@@ -2,7 +2,8 @@ import type { BoundingBox } from "./types";
 import type { OverpassElement } from "./geo.functions";
 
 const DEFAULT_RELEASE = "2026-08-19.0";
-const MAX_RESULTS = 20000;
+const MAX_RESULTS = 8000;
+const OVERTURE_TIMEOUT_MS = 20000;
 
 type OvertureRow = {
   id?: string;
@@ -159,7 +160,10 @@ export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassEl
 
 export async function safeQueryOverturePlaces(area: BoundingBox): Promise<OverpassElement[]> {
   try {
-    return await queryOverturePlaces(area);
+    return await Promise.race([
+      queryOverturePlaces(area),
+      new Promise<OverpassElement[]>((resolve) => setTimeout(() => resolve([]), OVERTURE_TIMEOUT_MS)),
+    ]);
   } catch {
     return [];
   }
