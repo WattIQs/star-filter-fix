@@ -2,15 +2,15 @@ import { Check, ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-r
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SORT_LABELS, type SortKey } from "@/lib/types";
+import { SORT_LABELS, type SignalFilter, type SortKey } from "@/lib/types";
 
 interface FiltersMenuProps {
   ratingFilters: string[];
   onRatingFiltersChange: (value: string[]) => void;
   priceFilter: string;
   onPriceFilterChange: (value: string) => void;
-  signalZeroOnly: boolean;
-  onSignalZeroOnlyChange: (value: boolean) => void;
+  signalFilter: SignalFilter;
+  onSignalFilterChange: (value: SignalFilter) => void;
   contactOnly: boolean;
   onContactOnlyChange: (value: boolean) => void;
   noWebsiteOnly: boolean;
@@ -33,6 +33,14 @@ const PRICE_OPTIONS = [
   { value: "1", label: "$ · Preço baixo" },
   { value: "2", label: "$$ · Preço médio" },
   { value: "3", label: "$$$ · Preço alto" },
+];
+
+const SIGNAL_OPTIONS: Array<{ value: SignalFilter; label: string }> = [
+  { value: "all", label: "Todos os sinais" },
+  { value: "zero", label: "Sinal Zero" },
+  { value: "weak", label: "Sinal Fraco" },
+  { value: "medium", label: "Sinal Médio" },
+  { value: "high", label: "Sinal Alto" },
 ];
 
 function FilterToggle({ checked, onChange, title, description }: { checked: boolean; onChange: (value: boolean) => void; title: string; description: string }) {
@@ -82,23 +90,25 @@ function SelectOptionList<T extends string>({ value, onChange, options, groupNam
   );
 }
 
-export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter, onPriceFilterChange, signalZeroOnly, onSignalZeroOnlyChange, contactOnly, onContactOnlyChange, noWebsiteOnly, onNoWebsiteOnlyChange, sortKey, onSortKeyChange }: FiltersMenuProps) {
+export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter, onPriceFilterChange, signalFilter, onSignalFilterChange, contactOnly, onContactOnlyChange, noWebsiteOnly, onNoWebsiteOnlyChange, sortKey, onSortKeyChange }: FiltersMenuProps) {
   const [searchGroupOpen, setSearchGroupOpen] = useState(false);
+  const [signalGroupOpen, setSignalGroupOpen] = useState(false);
   const [ratingGroupOpen, setRatingGroupOpen] = useState(false);
   const [priceGroupOpen, setPriceGroupOpen] = useState(false);
   const [sortGroupOpen, setSortGroupOpen] = useState(false);
 
-  const activeCount = ratingFilters.length + Number(priceFilter !== "any") + Number(signalZeroOnly) + Number(contactOnly) + Number(noWebsiteOnly);
+  const activeCount = ratingFilters.length + Number(priceFilter !== "any") + Number(signalFilter !== "all") + Number(contactOnly) + Number(noWebsiteOnly);
   const ratingSummary = ratingFilters.length === 0 ? "Qualquer classificação" : ratingFilters.map((value) => RATING_OPTIONS.find((option) => option.value === value)?.label ?? value).join(", ");
-  const searchCount = Number(signalZeroOnly) + Number(contactOnly) + Number(noWebsiteOnly);
+  const searchCount = Number(contactOnly) + Number(noWebsiteOnly);
   const searchSummary = searchCount === 0 ? "Sem restrições de presença" : `${searchCount} filtro${searchCount > 1 ? "s" : ""} ativo${searchCount > 1 ? "s" : ""}`;
+  const signalSummary = SIGNAL_OPTIONS.find((option) => option.value === signalFilter)?.label ?? "Todos os sinais";
   const priceSummary = PRICE_OPTIONS.find((option) => option.value === priceFilter)?.label ?? "Qualquer preço";
   const sortSummary = SORT_LABELS[sortKey] ?? SORT_LABELS.relevance;
 
   const clearFilters = () => {
     onRatingFiltersChange([]);
     onPriceFilterChange("any");
-    onSignalZeroOnlyChange(false);
+    onSignalFilterChange("all");
     onContactOnlyChange(false);
     onNoWebsiteOnlyChange(false);
     onSortKeyChange("relevance");
@@ -124,8 +134,12 @@ export function FiltersMenu({ ratingFilters, onRatingFiltersChange, priceFilter,
         </div>
 
         <div className="space-y-2.5">
+          <HiddenFilterGroup title="Sinais" summary={signalSummary} open={signalGroupOpen} onToggle={() => setSignalGroupOpen((open) => !open)}>
+            <SelectOptionList value={signalFilter} onChange={onSignalFilterChange} options={SIGNAL_OPTIONS} groupName="signals" />
+            <p className="text-[10px] leading-relaxed text-muted-foreground">Zero = 0 canais; Fraco = 1; Médio = 2; Alto = 3 entre site, Instagram e WhatsApp.</p>
+          </HiddenFilterGroup>
+
           <HiddenFilterGroup title="Busca e presença" summary={searchSummary} open={searchGroupOpen} onToggle={() => setSearchGroupOpen((open) => !open)}>
-            <FilterToggle checked={signalZeroOnly} onChange={onSignalZeroOnlyChange} title="Somente Sinal Zero" description="Exige verificação externa sem presença digital identificada." />
             <FilterToggle checked={contactOnly} onChange={onContactOnlyChange} title="Tem WhatsApp ou Instagram" description="Mostra apenas negócios com um desses canais identificados." />
             <FilterToggle checked={noWebsiteOnly} onChange={onNoWebsiteOnlyChange} title="Não possui site" description="Mantém negócios sem site próprio confirmado pela verificação web." />
           </HiddenFilterGroup>
