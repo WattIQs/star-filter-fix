@@ -25,7 +25,6 @@ export const Route = createFileRoute("/")({
 });
 
 const DEFAULT_CATEGORIES: CategoryKey[] = [];
-type VerificationMode = "signal-zero" | "no-website" | "both";
 
 function ratingMatchesFilter(rating: number | null, filters: string[]): boolean {
   if (filters.length === 0) return true;
@@ -47,19 +46,20 @@ function categoryMatches(lead: Establishment, categories: CategoryKey[]): boolea
   }));
 }
 
-// The contact filter is intentionally exclusive to the two channels the user wants.
-// A phone number, e-mail, website or Facebook page must never make a lead pass.
-function hasContact(lead: Establishment): boolean {
-  return Boolean(
-    lead.contact.whatsappValid ||
-    lead.contact.instagramUrl ||
-    lead.signals.whatsapp ||
-    lead.signals.instagram
-  );
+function hasWhatsappOrInstagram(lead: Establishment): boolean {
+  return Boolean(lead.contact.whatsappValid || lead.contact.instagramUrl);
 }
 
 function hasWebsite(lead: Establishment): boolean {
   return Boolean(lead.signals.website || lead.contact.websiteUrl);
+}
+
+function applyPresenceFilters(leads: Establishment[], signalZero: boolean, noWebsite: boolean): Establishment[] {
+  return leads.filter((lead) => {
+    if (signalZero && lead.level !== "zero") return false;
+    if (noWebsite && hasWebsite(lead)) return false;
+    return true;
+  });
 }
 
 function MapSkeleton() {
@@ -82,7 +82,6 @@ function Index() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [center, setCenter] = useState<{ lat: number; lon: number } | null>(null);
   const [place, setPlace] = useState<PlaceSuggestion | null>(null);
-  const [verificationMode, setVerificationMode] = useState<"external" | "off">("off");
   const [mobileView, setMobileView] = useState<"leads" | "map">("leads");
   const scanIdRef = useRef(0);
 
@@ -92,38 +91,10 @@ function Index() {
 
   const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
 
-  const applyPresenceFilter = (leads: Establishment[], signalZero: boolean, noWebsite: boolean) => leads.filter((lead) => {
-    if (signalZero && lead.level !== "zero") return false;
-    if (noWebsite && hasWebsite(lead)) return false;
-    return true;
-  });
-
-  const applyCurrentPresenceFilters = (leads: Establishment[], signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
-    if (!signalZero && !noWebsite) return leads;
-    const filtered = applyPresenceFilter(leads, signalZero, noWebsite);
-    setVerificationMode("off");
-    setResults(filtered);
-    setError(filtered.length === 0 ? (
-      mode === "signal-zero" ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa." :
-      mode === "no-website" ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa." :
-      "Nenhum estabelecimento satisfaz os filtros de presença selecionados."
-    ) : null);
-    setScanning(false);
-  };
-
-  const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults, selected = categories) => {
-    const categoryResults = filterByCategory(source, selected);
-    ++scanIdRef.current;
-    setError(null);
-    setSelectedId(null);
-    setVerificationMode("off");
-    setResults(categoryResults);
-    if (!signalZero && !noWebsite) {
-      setScanning(false);
-      return;
-    }
-    const mode: VerificationMode = signalZero && noWebsite ? "both" : signalZero ? "signal-zero" : "no-website";
-    applyCurrentPresenceFilters(categoryResults, signalZero, noWebsite, mode);
+  const applyCurrentFilters = (source: Establishment[], selectedCategories = categories, signalZero = signalZeroOnly, noWebsite = noWebsiteOnly) => {
+    const next = applyPresenceFilters(filterByCategory(source, selectedCategories), signalZero, noWebsite);
+    setResults(next);
+    setError(next.length === 0 && source.length > 0 ? "Nenhum resultado para os filtros atuais." : null);
   };
 
   const runScan = async (target: PlaceSuggestion) => {
@@ -134,25 +105,15 @@ function Index() {
     setAllResults([]);
     setSelectedId(null);
     setCenter({ lat: target.lat, lon: target.lon });
-    setVerificationMode("off");
     setMobileView("leads");
-    const area = target.boundingBox ?? { south: target.lat - 0.05, north: target.lat + 0.05, west: target.lon - 0.05, east: target.lon + 0.05 };
+
     try {
-      const data = await searchOverpassServer({ data: { area, categories } });
+      const data = await searchOverpassServer({ data: { area: target.boundingBox ?? { south: target.lat - 0.025, north: target.lat + 0.025, west: target.lon - 0.03, east: target.lon + 0.03 }, categories } });
       if (scanId !== scanIdRef.current) return;
       const processed = processOverpassResults(data.elements, categories);
       setAllResults(processed);
-      if (processed.length === 0) {
-        setResults([]);
-        setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
-        return;
-      }
-      if (signalZeroOnly || noWebsiteOnly) {
-        const mode: VerificationMode = signalZeroOnly && noWebsiteOnly ? "both" : signalZeroOnly ? "signal-zero" : "no-website";
-        applyCurrentPresenceFilters(processed, signalZeroOnly, noWebsiteOnly, mode);
-      } else {
-        setResults(processed);
-      }
+      setResults(processed);
+      if (processed.length === 0) setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
     } catch (err) {
       if (scanId !== scanIdRef.current) return;
       setError(err instanceof Error ? err.message : "Erro ao pesquisar a área.");
@@ -175,10 +136,7 @@ function Index() {
   const handleCategoriesChange = (next: CategoryKey[]) => {
     setCategories(next);
     setError(null);
-    if (allResults.length > 0) {
-      if (signalZeroOnly || noWebsiteOnly) runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly, allResults, next);
-      else setResults(filterByCategory(allResults, next));
-    }
+    if (allResults.length > 0) applyCurrentFilters(allResults, next);
   };
 
   const handleToggleSave = (lead: Establishment) => {
@@ -188,17 +146,17 @@ function Index() {
 
   const handleSignalZeroChange = (enabled: boolean) => {
     setSignalZeroOnly(enabled);
-    if (allResults.length > 0) runVerificationForCurrentFilters(enabled, noWebsiteOnly, allResults);
+    if (allResults.length > 0) applyCurrentFilters(allResults, categories, enabled, noWebsiteOnly);
   };
 
   const handleNoWebsiteChange = (enabled: boolean) => {
     setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, enabled, allResults);
+    if (allResults.length > 0) applyCurrentFilters(allResults, categories, signalZeroOnly, enabled);
   };
 
   const visibleResults = useMemo(() => {
     let list = results.filter((lead) => categoryMatches(lead, categories));
-    if (contactOnly) list = list.filter(hasContact);
+    if (contactOnly) list = list.filter(hasWhatsappOrInstagram);
     list = list.filter((lead) => ratingMatchesFilter(lead.rating, ratingFilters));
     if (priceFilter !== "any") {
       const level = Number.parseInt(priceFilter, 10);
@@ -227,7 +185,7 @@ function Index() {
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:relative lg:flex-row lg:gap-3 lg:p-3">
         <div className="flex shrink-0 border-b border-border bg-card px-2 py-1.5 lg:hidden"><div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Área de trabalho"><button type="button" role="tab" aria-selected={mobileView === "leads"} onClick={() => setMobileView("leads")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "leads" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Rows3 className="h-4 w-4" />Leads <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{visibleResults.length}</span></button><button type="button" role="tab" aria-selected={mobileView === "map"} onClick={() => setMobileView("map")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "map" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Map className="h-4 w-4" />Mapa</button></div></div>
-        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}><div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly && noWebsiteOnly ? "Sinal Zero + sem site" : signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2></div><span className="text-xs text-muted-foreground">{visibleResults.length}</span></div><div className="min-h-0 flex-1 overflow-auto p-2"><Suspense fallback={<MapSkeleton />}><div className="space-y-2">{visibleResults.map((place) => <PlaceRow key={place.id} place={place} active={selectedId === place.id} saved={savedLeads.some((saved) => saved.id === place.id)} onSelect={() => setSelectedId(place.id)} onToggleSave={handleToggleSave} />)}</div></Suspense>{visibleResults.length === 0 && !scanning && <div className="p-6 text-center text-sm text-muted-foreground">{error ?? "Nenhum resultado para os filtros atuais."}</div>}{scanning && <div className="flex items-center justify-center p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verificando...</div>}</div></aside>
+        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}><div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly && noWebsiteOnly ? "Sinal Zero + sem site" : signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2></div><span className="text-xs text-muted-foreground">{visibleResults.length}</span></div><div className="min-h-0 flex-1 overflow-auto p-2"><Suspense fallback={<MapSkeleton />}><div className="space-y-2">{visibleResults.map((place) => <PlaceRow key={place.id} place={place} active={selectedId === place.id} saved={savedLeads.some((saved) => saved.id === place.id)} onSelect={() => setSelectedId(place.id)} onToggleSave={handleToggleSave} />)}</div></Suspense>{visibleResults.length === 0 && !scanning && <div className="p-6 text-center text-sm text-muted-foreground">{error ?? "Nenhum resultado para os filtros atuais."}</div>}{scanning && <div className="flex items-center justify-center p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Pesquisando...</div>}</div></aside>
         <section className={`relative min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/20 ${mobileView === "map" ? "" : "hidden lg:block"}`}><ClientOnly fallback={<MapSkeleton />}><MapCanvas center={center} places={visibleResults} selectedId={selectedId} onSelect={setSelectedId} /></ClientOnly></section>
       </div>
     </div>
