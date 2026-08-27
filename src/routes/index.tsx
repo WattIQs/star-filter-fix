@@ -16,7 +16,7 @@ import { SavedLeadsDrawer } from "@/components/sinal-zero/SavedLeadsDrawer";
 
 const MapCanvas = lazy(() => import("@/components/sinal-zero/MapCanvas"));
 
-type SignalFilter = "all" | "zero" | "weak" | "medium" | "high";
+type SignalFilter = "zero" | "weak" | "medium" | "high";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -57,19 +57,21 @@ function hasWebsite(lead: Establishment): boolean {
   return Boolean(lead.signals.website || lead.contact.websiteUrl);
 }
 
-function matchesSignalFilter(lead: Establishment, filter: SignalFilter): boolean {
-  switch (filter) {
-    case "zero": return lead.signalCount === 0;
-    case "weak": return lead.signalCount === 1;
-    case "medium": return lead.signalCount === 2;
-    case "high": return lead.signalCount === 3;
-    default: return true;
-  }
+function matchesSignalFilter(lead: Establishment, filters: SignalFilter[]): boolean {
+  if (filters.length === 0) return true;
+  return filters.some((filter) => {
+    switch (filter) {
+      case "zero": return lead.signalCount === 0;
+      case "weak": return lead.signalCount === 1;
+      case "medium": return lead.signalCount === 2;
+      case "high": return lead.signalCount === 3;
+    }
+  });
 }
 
-function applyPresenceFilters(leads: Establishment[], signalFilter: SignalFilter, noWebsite: boolean): Establishment[] {
+function applyPresenceFilters(leads: Establishment[], signalFilters: SignalFilter[], noWebsite: boolean): Establishment[] {
   return leads.filter((lead) => {
-    if (!matchesSignalFilter(lead, signalFilter)) return false;
+    if (!matchesSignalFilter(lead, signalFilters)) return false;
     if (noWebsite && hasWebsite(lead)) return false;
     return true;
   });
@@ -85,7 +87,7 @@ function Index() {
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
   const [ratingFilters, setRatingFilters] = useState<string[]>([]);
   const [priceFilter, setPriceFilter] = useState("any");
-  const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
+  const [signalFilters, setSignalFilters] = useState<SignalFilter[]>([]);
   const [contactOnly, setContactOnly] = useState(false);
   const [noWebsiteOnly, setNoWebsiteOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("relevance");
@@ -108,8 +110,8 @@ function Index() {
 
   const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
 
-  const applyCurrentFilters = (source: Establishment[], selectedCategories = categories, selectedSignal = signalFilter, noWebsite = noWebsiteOnly) => {
-    const next = applyPresenceFilters(filterByCategory(source, selectedCategories), selectedSignal, noWebsite);
+  const applyCurrentFilters = (source: Establishment[], selectedCategories = categories, selectedSignals = signalFilters, noWebsite = noWebsiteOnly) => {
+    const next = applyPresenceFilters(filterByCategory(source, selectedCategories), selectedSignals, noWebsite);
     setResults(next);
     setError(next.length === 0 && source.length > 0 ? "Nenhum resultado para os filtros atuais." : null);
   };
@@ -136,17 +138,17 @@ function Index() {
     }
   };
 
-  const refreshPresenceFilters = async (source: Establishment[], selectedSignal = signalFilter, noWebsite = noWebsiteOnly) => {
-    const needsVerification = selectedSignal !== "all" || noWebsite || contactOnly;
+  const refreshPresenceFilters = async (source: Establishment[], selectedSignals = signalFilters, noWebsite = noWebsiteOnly) => {
+    const needsVerification = selectedSignals.length > 0 || noWebsite || contactOnly;
     if (!needsVerification) {
-      applyCurrentFilters(source, categories, selectedSignal, noWebsite);
+      applyCurrentFilters(source, categories, selectedSignals, noWebsite);
       return;
     }
     setResults([]);
     const enriched = await enrichPresence(source);
     if (enriched) {
       setAllResults(enriched);
-      applyCurrentFilters(enriched, categories, selectedSignal, noWebsite);
+      applyCurrentFilters(enriched, categories, selectedSignals, noWebsite);
     }
   };
 
@@ -166,13 +168,13 @@ function Index() {
       const data = await searchPlaces({ data: { area: target.boundingBox ?? { south: target.lat - 0.025, north: target.lat + 0.025, west: target.lon - 0.03, east: target.lon + 0.03 }, categories } });
       if (scanId !== scanIdRef.current) return;
       const processed = processOverpassResults(data.elements, categories);
-      if (signalFilter !== "all" || contactOnly || noWebsiteOnly) {
+      if (signalFilters.length > 0 || contactOnly || noWebsiteOnly) {
         setResults([]);
         const enriched = await enrichPresence(processed, scanId);
         if (scanId !== scanIdRef.current) return;
         if (enriched) {
           setAllResults(enriched);
-          applyCurrentFilters(enriched, categories, signalFilter, noWebsiteOnly);
+          applyCurrentFilters(enriched, categories, signalFilters, noWebsiteOnly);
         }
       } else {
         setAllResults(processed);
@@ -201,7 +203,7 @@ function Index() {
   const handleCategoriesChange = (next: CategoryKey[]) => {
     setCategories(next);
     setError(null);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilter, noWebsiteOnly);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, noWebsiteOnly);
   };
 
   const handleToggleSave = (lead: Establishment) => {
@@ -209,19 +211,19 @@ function Index() {
     setSavedLeads(getSavedLeads());
   };
 
-  const handleSignalFilterChange = (next: SignalFilter) => {
-    setSignalFilter(next);
+  const handleSignalFiltersChange = (next: SignalFilter[]) => {
+    setSignalFilters(next);
     if (allResults.length > 0) void refreshPresenceFilters(allResults, next, noWebsiteOnly);
   };
 
   const handleContactChange = (enabled: boolean) => {
     setContactOnly(enabled);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilter, noWebsiteOnly);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, noWebsiteOnly);
   };
 
   const handleNoWebsiteChange = (enabled: boolean) => {
     setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilter, enabled);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, enabled);
   };
 
   const visibleResults = useMemo(() => {
@@ -246,14 +248,18 @@ function Index() {
     return sorted;
   }, [results, categories, contactOnly, ratingFilters, priceFilter, sortKey]);
 
-  const signalTitle = signalFilter === "all" ? "Estabelecimentos" : `Sinal ${signalFilter === "zero" ? "Zero" : signalFilter === "weak" ? "Fraco" : signalFilter === "medium" ? "Médio" : "Alto"}`;
+  const signalTitle = signalFilters.length === 0
+    ? "Estabelecimentos"
+    : signalFilters.length === 1
+      ? `Sinal ${signalFilters[0] === "zero" ? "Zero" : signalFilters[0] === "weak" ? "Fraco" : signalFilters[0] === "medium" ? "Médio" : "Alto"}`
+      : `${signalFilters.length} sinais selecionados`;
 
   return (
     <div className="flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground lg:h-screen">
       <header className="relative z-[3000] shrink-0 border-b border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur lg:flex lg:min-h-14 lg:items-center lg:gap-3 lg:px-3">
         <div className="flex min-w-0 items-center gap-2"><div className="flex shrink-0 items-center gap-2"><Radar className="h-5 w-5 text-signal-zero" /><span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span></div><div className="min-w-0 flex-1 lg:hidden"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
         <div className="mt-2 min-w-0 lg:mt-0 lg:flex-1 lg:block"><div className="hidden lg:block"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
-        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalFilter={signalFilter} onSignalFilterChange={handleSignalFilterChange} contactOnly={contactOnly} onContactOnlyChange={handleContactChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /><ExportCsvButton /></div></div>
+        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalFilters={signalFilters} onSignalFiltersChange={handleSignalFiltersChange} contactOnly={contactOnly} onContactOnlyChange={handleContactChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /><ExportCsvButton /></div></div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:relative lg:flex-row lg:gap-3 lg:p-3">
         <div className="flex shrink-0 border-b border-border bg-card px-2 py-1.5 lg:hidden"><div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Área de trabalho"><button type="button" role="tab" aria-selected={mobileView === "leads"} onClick={() => setMobileView("leads")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "leads" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Rows3 className="h-4 w-4" />Leads <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{visibleResults.length}</span></button><button type="button" role="tab" aria-selected={mobileView === "map"} onClick={() => setMobileView("map")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "map" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><MapIcon className="h-4 w-4" />Mapa</button></div></div>
@@ -263,5 +269,3 @@ function Index() {
     </div>
   );
 }
-
-export default Index;
