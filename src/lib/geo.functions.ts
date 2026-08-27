@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { BoundingBox, CategoryKey, Establishment } from "./types";
-import { buildAroundQuery, buildOverpassQuery } from "./overpass-query";
+import { buildOverpassQuery } from "./overpass-query";
 import { fetchWithTimeout, OSM_UA, OVERPASS_MIRRORS } from "./geo.server";
 import { externalVerificationConfigured, verifyLeads, type LeadVerification } from "./web-verification";
 
@@ -54,17 +54,12 @@ export const searchPlacesServer = createServerFn({ method: "POST" }).validator((
 });
 
 export const searchOverpassServer = createServerFn({ method: "POST" }).validator((data: { area: BoundingBox; categories: CategoryKey[] }) => data).handler(async ({ data }) => {
-  const area = data.area;
-  const primary = await queryArea(area, data.categories);
-  if (primary !== null) return { elements: primary };
-  const lat = (area.south + area.north) / 2;
-  const lon = (area.west + area.east) / 2;
-  const fallback = await queryOverpass(buildAroundQuery(lat, lon, data.categories, 1500));
-  if (fallback === null) throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
-  return { elements: fallback };
+  const primary = await queryArea(data.area, data.categories);
+  if (primary === null) throw new Error("A fonte de estabelecimentos está indisponível no momento. Tente novamente em alguns segundos.");
+  return { elements: primary };
 });
 
 export const verifyLeadsServer = createServerFn({ method: "POST" }).validator((data: { leads: Establishment[] }) => data).handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean }> => {
-  if (!externalVerificationConfigured()) return { leads: data.leads.map((lead) => ({ ...lead, verification: { status: "unverified", score: 0, reasons: ["Verificação externa não configurada; usados os dados do OpenStreetMap."], checked: false, foundDigitalPresence: false, foundWebsite: false, contactConfidence: "low" as const } })), external: false };
+  if (!externalVerificationConfigured()) return { leads: data.leads.map((lead) => ({ ...lead, verification: { status: "unverified", score: 0, reasons: ["Verificação externa não configurada; usados os dados do OpenStreetMap."], checked: false, foundDigitalPresence: Boolean(lead.signals.website || lead.signals.instagram || lead.contact.whatsappValid || lead.contact.instagramUrl), foundWebsite: Boolean(lead.signals.website || lead.contact.websiteUrl), contactConfidence: "low" as const } })), external: false };
   return { leads: await verifyLeads(data.leads), external: true };
 });
