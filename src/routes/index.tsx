@@ -48,11 +48,7 @@ function categoryMatches(lead: Establishment, categories: CategoryKey[]): boolea
 }
 
 function hasContact(lead: Establishment): boolean {
-  return Boolean(
-    lead.contact.whatsappValid || lead.contact.phoneDigits || lead.contact.email ||
-    lead.contact.instagramUrl || lead.contact.facebookUrl || lead.contact.websiteUrl ||
-    lead.signals.phone || lead.signals.email || lead.signals.instagram || lead.signals.facebook
-  );
+  return Boolean(lead.contact.whatsappValid || lead.contact.instagramUrl);
 }
 
 function hasWebsite(lead: Establishment): boolean {
@@ -83,38 +79,22 @@ function Index() {
   const [mobileView, setMobileView] = useState<"leads" | "map">("leads");
   const scanIdRef = useRef(0);
 
-  useEffect(() => {
-    setSavedLeads(getSavedLeads());
-  }, []);
+  useEffect(() => { setSavedLeads(getSavedLeads()); }, []);
 
   const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
-
-  const applyPresenceFilter = (leads: Establishment[], signalZero: boolean, noWebsite: boolean) => leads.filter((lead) => {
-    if (signalZero && lead.level !== "zero") return false;
-    if (noWebsite && hasWebsite(lead)) return false;
-    return true;
-  });
+  const applyPresenceFilter = (leads: Establishment[], signalZero: boolean, noWebsite: boolean) => leads.filter((lead) => { if (signalZero && lead.level !== "zero") return false; if (noWebsite && hasWebsite(lead)) return false; return true; });
 
   const verifyPresence = async (leads: Establishment[], scanId: number, signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
     if (scanId !== scanIdRef.current) return;
     const localCandidates = applyPresenceFilter(leads, signalZero, noWebsite);
     setVerificationMode("off");
     setResults(localCandidates);
-    setError(localCandidates.length === 0 ? (
-      mode === "signal-zero" ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa." :
-      mode === "no-website" ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa." :
-      "Nenhum estabelecimento satisfaz os filtros de presença selecionados."
-    ) : null);
-
-    // Never access process.env in the browser. Server-side configuration is
-    // already handled by verifyLeadsServer/externalVerificationConfigured.
+    setError(localCandidates.length === 0 ? (mode === "signal-zero" ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa." : mode === "no-website" ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa." : "Nenhum estabelecimento satisfaz os filtros de presença selecionados.") : null);
     if (!localCandidates.length) return;
-
     try {
       const verified = await verifyLeadsServer({ data: { leads: localCandidates } });
       if (scanId !== scanIdRef.current) return;
       if (!verified.external) return;
-
       setVerificationMode("external");
       const refined = verified.leads.filter((lead) => {
         if (!lead.verification.checked) return true;
@@ -124,120 +104,51 @@ function Index() {
       });
       setResults(refined);
       setError(refined.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
-    } catch {
-      if (scanId === scanIdRef.current) setVerificationMode("off");
-    }
+    } catch { if (scanId === scanIdRef.current) setVerificationMode("off"); }
   };
 
   const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults, selected = categories) => {
     const categoryResults = filterByCategory(source, selected);
     const scanId = ++scanIdRef.current;
-    setError(null);
-    setSelectedId(null);
-    if (!signalZero && !noWebsite) {
-      setVerificationMode("off");
-      setResults(categoryResults);
-      setScanning(false);
-      return;
-    }
+    setError(null); setSelectedId(null);
+    if (!signalZero && !noWebsite) { setVerificationMode("off"); setResults(categoryResults); setScanning(false); return; }
     setScanning(true);
     const mode: VerificationMode = signalZero && noWebsite ? "both" : signalZero ? "signal-zero" : "no-website";
-    void verifyPresence(categoryResults, scanId, signalZero, noWebsite, mode).finally(() => {
-      if (scanId === scanIdRef.current) setScanning(false);
-    });
+    void verifyPresence(categoryResults, scanId, signalZero, noWebsite, mode).finally(() => { if (scanId === scanIdRef.current) setScanning(false); });
   };
 
   const runScan = async (target: PlaceSuggestion) => {
     const scanId = ++scanIdRef.current;
-    setError(null);
-    setScanning(true);
-    setResults([]);
-    setAllResults([]);
-    setSelectedId(null);
-    setCenter({ lat: target.lat, lon: target.lon });
-    setVerificationMode("off");
-    setMobileView("leads");
+    setError(null); setScanning(true); setResults([]); setAllResults([]); setSelectedId(null); setCenter({ lat: target.lat, lon: target.lon }); setVerificationMode("off"); setMobileView("leads");
     const area = target.boundingBox ?? { south: target.lat - 0.05, north: target.lat + 0.05, west: target.lon - 0.05, east: target.lon + 0.05 };
     try {
       const data = await searchOverpassServer({ data: { area, categories } });
       if (scanId !== scanIdRef.current) return;
       const processed = processOverpassResults(data.elements, categories);
       setAllResults(processed);
-      if (processed.length === 0) {
-        setResults([]);
-        setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
-        return;
-      }
+      if (processed.length === 0) { setResults([]); setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas."); return; }
       if (signalZeroOnly || noWebsiteOnly) {
         const mode: VerificationMode = signalZeroOnly && noWebsiteOnly ? "both" : signalZeroOnly ? "signal-zero" : "no-website";
-        void verifyPresence(processed, scanId, signalZeroOnly, noWebsiteOnly, mode).finally(() => {
-          if (scanId === scanIdRef.current) setScanning(false);
-        });
-      } else {
-        setResults(processed);
-      }
-    } catch (err) {
-      if (scanId !== scanIdRef.current) return;
-      setError(err instanceof Error ? err.message : "Erro ao pesquisar a área.");
-    } finally {
-      if (scanId === scanIdRef.current && !signalZeroOnly && !noWebsiteOnly) setScanning(false);
-    }
+        void verifyPresence(processed, scanId, signalZeroOnly, noWebsiteOnly, mode).finally(() => { if (scanId === scanIdRef.current) setScanning(false); });
+      } else setResults(processed);
+    } catch (err) { if (scanId !== scanIdRef.current) return; setError(err instanceof Error ? err.message : "Erro ao pesquisar a área."); }
+    finally { if (scanId === scanIdRef.current && !signalZeroOnly && !noWebsiteOnly) setScanning(false); }
   };
 
-  const handlePickPlace = (target: PlaceSuggestion) => {
-    setPlace(target);
-    setCenter({ lat: target.lat, lon: target.lon });
-    setError(null);
-  };
-
-  const handleScanCurrentPlace = () => {
-    if (place) void runScan(place);
-    else setError("Pesquise primeiro uma cidade, bairro ou local.");
-  };
-
-  const handleCategoriesChange = (next: CategoryKey[]) => {
-    setCategories(next);
-    setError(null);
-    if (allResults.length > 0) {
-      if (signalZeroOnly || noWebsiteOnly) runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly, allResults, next);
-      else setResults(filterByCategory(allResults, next));
-    }
-  };
-
-  const handleToggleSave = (lead: Establishment) => {
-    if (isLeadSaved(lead.id)) removeLead(lead.id); else saveLead(lead);
-    setSavedLeads(getSavedLeads());
-  };
-
-  const handleSignalZeroChange = (enabled: boolean) => {
-    setSignalZeroOnly(enabled);
-    if (allResults.length > 0) runVerificationForCurrentFilters(enabled, noWebsiteOnly, allResults);
-  };
-
-  const handleNoWebsiteChange = (enabled: boolean) => {
-    setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, enabled, allResults);
-  };
+  const handlePickPlace = (target: PlaceSuggestion) => { setPlace(target); setCenter({ lat: target.lat, lon: target.lon }); setError(null); };
+  const handleScanCurrentPlace = () => { if (place) void runScan(place); else setError("Pesquise primeiro uma cidade, bairro ou local."); };
+  const handleCategoriesChange = (next: CategoryKey[]) => { setCategories(next); setError(null); if (allResults.length > 0) { if (signalZeroOnly || noWebsiteOnly) runVerificationForCurrentFilters(signalZeroOnly, noWebsiteOnly, allResults, next); else setResults(filterByCategory(allResults, next)); } };
+  const handleToggleSave = (lead: Establishment) => { if (isLeadSaved(lead.id)) removeLead(lead.id); else saveLead(lead); setSavedLeads(getSavedLeads()); };
+  const handleSignalZeroChange = (enabled: boolean) => { setSignalZeroOnly(enabled); if (allResults.length > 0) runVerificationForCurrentFilters(enabled, noWebsiteOnly, allResults); };
+  const handleNoWebsiteChange = (enabled: boolean) => { setNoWebsiteOnly(enabled); if (allResults.length > 0) runVerificationForCurrentFilters(signalZeroOnly, enabled, allResults); };
 
   const visibleResults = useMemo(() => {
     let list = results.filter((lead) => categoryMatches(lead, categories));
     if (contactOnly) list = list.filter(hasContact);
     list = list.filter((lead) => ratingMatchesFilter(lead.rating, ratingFilters));
-    if (priceFilter !== "any") {
-      const level = Number.parseInt(priceFilter, 10);
-      list = list.filter((lead) => lead.priceLevel === level);
-    }
+    if (priceFilter !== "any") { const level = Number.parseInt(priceFilter, 10); list = list.filter((lead) => lead.priceLevel === level); }
     const sorted = [...list];
-    sorted.sort((a, b) => {
-      switch (sortKey) {
-        case "rating_desc": return (b.rating ?? -1) - (a.rating ?? -1);
-        case "rating_asc": return (a.rating ?? 99) - (b.rating ?? 99);
-        case "price_desc": return (b.priceLevel ?? 0) - (a.priceLevel ?? 0);
-        case "price_asc": return (a.priceLevel ?? 99) - (b.priceLevel ?? 99);
-        case "name_asc": return a.name.localeCompare(b.name, "pt-BR");
-        default: return (a.signalCount - b.signalCount) || (Number(b.contactable) - Number(a.contactable)) || ((b.rating ?? -1) - (a.rating ?? -1)) || a.name.localeCompare(b.name, "pt-BR");
-      }
-    });
+    sorted.sort((a,b) => { switch(sortKey){ case "rating_desc": return (b.rating??-1)-(a.rating??-1); case "rating_asc": return (a.rating??99)-(b.rating??99); case "price_desc": return (b.priceLevel??0)-(a.priceLevel??0); case "price_asc": return (a.priceLevel??99)-(b.priceLevel??99); case "name_asc": return a.name.localeCompare(b.name,"pt-BR"); default: return (a.signalCount-b.signalCount)||(Number(b.contactable)-Number(a.contactable))||((b.rating??-1)-(a.rating??-1))||a.name.localeCompare(b.name,"pt-BR"); }});
     return sorted;
   }, [results, categories, contactOnly, ratingFilters, priceFilter, sortKey]);
 
