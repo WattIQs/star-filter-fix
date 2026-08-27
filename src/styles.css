@@ -3,14 +3,7 @@
 @import "leaflet/dist/leaflet.css";
 
 @source "../src";
-
 @custom-variant dark (&:is(.dark *));
-
-/*
- * Design system: Sinal Zero — tema radar/scanner de sinal.
- *
- * Tudo em oklch. Tokens semânticos mapeados no @theme inline.
- */
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -20,7 +13,6 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -40,8 +32,6 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
-
   --color-signal-zero: var(--signal-zero);
   --color-signal-zero-glow: var(--signal-zero-glow);
   --color-signal-weak: var(--signal-weak);
@@ -53,66 +43,82 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.18 0.03 260);
-  --foreground: oklch(0.95 0.01 260);
-  --card: oklch(0.22 0.04 260);
-  --card-foreground: oklch(0.95 0.01 260);
-  --popover: oklch(0.2 0.04 260);
-  --popover-foreground: oklch(0.95 0.01 260);
-  --primary: oklch(0.65 0.2 55);
-  --primary-foreground: oklch(0.15 0.03 260);
-  --secondary: oklch(0.28 0.05 260);
-  --secondary-foreground: oklch(0.92 0.01 260);
-  --muted: oklch(0.28 0.04 260);
-  --muted-foreground: oklch(0.65 0.03 260);
-  --accent: oklch(0.32 0.06 260);
-  --accent-foreground: oklch(0.95 0.01 260);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0.01 260);
-  --border: oklch(0.35 0.04 260);
-  --input: oklch(0.3 0.04 260);
-  --ring: oklch(0.65 0.18 55);
-  --signal-zero: oklch(0.68 0.22 55);
-  --signal-zero-glow: oklch(0.75 0.28 60);
-  --signal-weak: oklch(0.75 0.16 85);
-  --signal-full: oklch(0.65 0.14 195);
-  --cyan: oklch(0.7 0.16 210);
-  --cyan-dim: oklch(0.55 0.12 210);
-  --grid: oklch(0.25 0.03 260 / 0.35);
-  --panel: oklch(0.2 0.04 260 / 0.85);
+  --radius: 0.8rem;
+  --background: oklch(0.155 0.028 258);
+  --foreground: oklch(0.96 0.008 258);
+  --card: oklch(0.205 0.036 258);
+  --card-foreground: oklch(0.96 0.008 258);
+  --popover: oklch(0.195 0.035 258);
+  --popover-foreground: oklch(0.96 0.008 258);
+  --primary: oklch(0.72 0.18 72);
+  --primary-foreground: oklch(0.14 0.025 258);
+  --secondary: oklch(0.245 0.045 258);
+  --secondary-foreground: oklch(0.93 0.008 258);
+  --muted: oklch(0.245 0.035 258);
+  --muted-foreground: oklch(0.68 0.025 258);
+  --accent: oklch(0.29 0.055 258);
+  --accent-foreground: oklch(0.96 0.008 258);
+  --destructive: oklch(0.59 0.19 25);
+  --destructive-foreground: oklch(0.98 0.01 258);
+  --border: oklch(0.34 0.038 258);
+  --input: oklch(0.275 0.035 258);
+  --ring: oklch(0.72 0.17 72);
+  --signal-zero: oklch(0.76 0.2 72);
+  --signal-zero-glow: oklch(0.84 0.24 82);
+  --signal-weak: oklch(0.8 0.15 92);
+  --signal-full: oklch(0.74 0.13 195);
+  --cyan: oklch(0.77 0.14 205);
+  --cyan-dim: oklch(0.6 0.1 205);
+  --grid: oklch(0.23 0.028 258 / 0.28);
+  --panel: oklch(0.185 0.035 258 / 0.9);
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html { font-family: "Space Grotesk", system-ui, sans-serif; }
+  * { border-color: var(--color-border); box-sizing: border-box; }
+  html { font-family: "Space Grotesk", system-ui, sans-serif; background: var(--color-background); text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
   body {
+    margin: 0;
+    min-width: 320px;
     background-color: var(--color-background);
     color: var(--color-foreground);
-    background-image: linear-gradient(var(--color-grid) 1px, transparent 1px), linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
-    background-size: 48px 48px;
+    background-image: radial-gradient(circle at 50% -10%, color-mix(in oklab, var(--color-primary) 9%, transparent), transparent 34%), linear-gradient(var(--color-grid) 1px, transparent 1px), linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+    background-size: auto, 48px 48px, 48px 48px;
     background-position: center top;
   }
+  ::selection { background: color-mix(in oklab, var(--color-primary) 30%, transparent); color: var(--color-foreground); }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--color-muted-foreground) 30%, transparent); border: 2px solid transparent; background-clip: padding-box; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--color-primary) 55%, transparent); background-clip: padding-box; }
   code, .font-mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
 }
 
 @layer utilities {
   .text-gradient-signal { background: linear-gradient(135deg, var(--color-signal-zero), var(--color-signal-zero-glow)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .glow-zero { box-shadow: 0 0 18px -4px color-mix(in oklab, var(--color-signal-zero) 55%, transparent); }
-  .glow-zero-text { text-shadow: 0 0 16px color-mix(in oklab, var(--color-signal-zero) 60%, transparent); }
+  .glow-zero { box-shadow: 0 0 22px -5px color-mix(in oklab, var(--color-signal-zero) 48%, transparent); }
+  .glow-zero-text { text-shadow: 0 0 16px color-mix(in oklab, var(--color-signal-zero) 55%, transparent); }
   .border-glow { border-color: color-mix(in oklab, var(--color-signal-zero) 40%, var(--color-border)); }
+  .glass-panel { background: color-mix(in oklab, var(--color-card) 88%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
   .radar-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--color-signal-zero) 35%, transparent); animation: radar-pulse 2.5s ease-out infinite; }
   .radar-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--color-signal-zero) 45%, transparent) 60deg, transparent 65deg); animation: radar-sweep 2s linear infinite; }
 }
 
 @keyframes radar-pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
 @keyframes radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 14px -3px color-mix(in oklab, var(--color-signal-zero) 45%, transparent); } 50% { box-shadow: 0 0 24px -2px color-mix(in oklab, var(--color-signal-zero) 70%, transparent); } }
-@keyframes lead-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 14px -3px color-mix(in oklab, var(--color-signal-zero) 40%, transparent); } 50% { box-shadow: 0 0 24px -2px color-mix(in oklab, var(--color-signal-zero) 65%, transparent); } }
+@keyframes lead-enter { from { opacity: 0; transform: translateY(8px) scale(0.995); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes soft-appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
 
 .leaflet-container { background: var(--color-background); font-family: inherit; }
-.leaflet-control-zoom a, .leaflet-control-attribution { background: var(--color-card) !important; color: var(--color-muted-foreground) !important; border-color: var(--color-border) !important; }
+.leaflet-control-zoom { border: 0 !important; box-shadow: 0 10px 28px -18px var(--color-primary) !important; }
+.leaflet-control-zoom a, .leaflet-control-attribution { background: color-mix(in oklab, var(--color-card) 94%, transparent) !important; color: var(--color-muted-foreground) !important; border-color: var(--color-border) !important; backdrop-filter: blur(12px); }
+.leaflet-control-zoom a { transition: background-color .18s ease, color .18s ease, transform .18s ease; }
+.leaflet-control-zoom a:hover { background: var(--color-accent) !important; color: var(--color-foreground) !important; }
 .leaflet-control-attribution a { color: var(--color-muted-foreground) !important; }
-.leaflet-tooltip { background: var(--color-card); border: 1px solid var(--color-border); color: var(--color-foreground); font-size: 11px; box-shadow: none; }
+.leaflet-tooltip { background: color-mix(in oklab, var(--color-card) 96%, transparent); border: 1px solid var(--color-border); color: var(--color-foreground); font-size: 11px; box-shadow: 0 10px 28px -18px black; backdrop-filter: blur(10px); }
 .leaflet-tooltip-top::before { border-top-color: var(--color-border); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
