@@ -50,8 +50,11 @@ function editDistance(a: string, b: string): number {
   for (let i = 1; i <= a.length; i += 1) {
     curr[0] = i;
     for (let j = 1; j <= b.length; j += 1) {
+      const current = curr[j - 1] ?? Number.POSITIVE_INFINITY;
+      const above = prev[j] ?? Number.POSITIVE_INFINITY;
+      const diagonal = prev[j - 1] ?? Number.POSITIVE_INFINITY;
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      curr[j] = Math.min(current + 1, above + 1, diagonal + cost);
     }
     for (let j = 0; j <= b.length; j += 1) prev[j] = curr[j] ?? j;
   }
