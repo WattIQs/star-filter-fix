@@ -1,4 +1,4 @@
-import type { Establishment } from "./types";
+import type { Establishment, EstablishmentContact } from "./types";
 import { fetchWithTimeout } from "./geo.server";
 
 export type VerificationStatus = "verified" | "rejected" | "unverified";
@@ -15,6 +15,7 @@ export interface LeadVerification {
 
 type SearchItem = { link?: string; title?: string; snippet?: string };
 type SearchResponse = { items: SearchItem[]; ok: boolean };
+type VerificationResult = LeadVerification & { contact: EstablishmentContact };
 
 function env(name: string): string | undefined {
   return typeof process !== "undefined" ? process.env[name]?.trim() || undefined : undefined;
@@ -29,7 +30,7 @@ function normalize(value: string): string {
 }
 
 function tokens(value: string): string[] {
-  const ignored = new Set(["ltda", "me", "epp", "eireli", "comercio", "comercio", "empresa", "de", "da", "do", "das", "dos", "e"]);
+  const ignored = new Set(["ltda", "me", "epp", "eireli", "comercio", "empresa", "de", "da", "do", "das", "dos", "e"]);
   return normalize(value).split(" ").filter((token) => token.length >= 3 && !ignored.has(token));
 }
 
@@ -62,15 +63,50 @@ function isSocial(link: string): boolean {
   return ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "linkedin.com", "x.com", "twitter.com"].some((domain) => value === domain || value.endsWith(`.${domain}`));
 }
 
+function isInstagram(link: string): boolean {
+  const value = host(link);
+  return value === "instagram.com" || value.endsWith(".instagram.com");
+}
+
+function isWhatsApp(link: string): boolean {
+  const value = host(link);
+  return value === "wa.me" || value === "api.whatsapp.com" || value === "chat.whatsapp.com" || value === "whatsapp.com" || value.endsWith(".whatsapp.com");
+}
+
 function isDirectory(link: string): boolean {
   const value = host(link);
-  return ["tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com", "google.com", "google.com.br", "maps.google.com", "wikipedia.org", "wikidata.org", "openstreetmap.org"].some((domain) => value === domain || value.endsWith(`.${domain}`));
+  return ["tripadvisor.com", "yelp.com", "ifood.com.br", "rappi.com.br", "ubereats.com", "google.com", "google.com.br", "maps.google.com", "wikipedia.org", "wikidata.org", "openstreetmap.org", "goomer.app", "mechamenozap.com.br"].some((domain) => value === domain || value.endsWith(`.${domain}`));
 }
 
 function isLikelyOwnWebsite(link: string): boolean {
-  if (!link || isSocial(link) || isDirectory(link)) return false;
+  if (!link || isSocial(link) || isDirectory(link) || isWhatsApp(link)) return false;
   const value = host(link);
   return Boolean(value && !value.endsWith(".gov.br") && !value.endsWith(".edu.br"));
+}
+
+function instagramFromLink(link: string): string | null {
+  if (!isInstagram(link)) return null;
+  try {
+    const path = new URL(link).pathname.split("/").filter(Boolean)[0] ?? "";
+    return /^[A-Za-z0-9_.]{2,}$/.test(path) ? `https://instagram.com/${path}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function whatsappFromLink(link: string): string | null {
+  try {
+    const url = new URL(link);
+    if (!isWhatsApp(link)) return null;
+    if (url.hostname === "wa.me") {
+      const digits = url.pathname.replace(/\D/g, "");
+      return digits.length >= 11 && digits.length <= 15 ? `https://wa.me/${digits}` : null;
+    }
+    const phone = url.searchParams.get("phone")?.replace(/\D/g, "") ?? "";
+    return phone.length >= 11 && phone.length <= 15 ? `https://wa.me/${phone}` : null;
+  } catch {
+    return null;
+  }
 }
 
 async function googleSearch(query: string): Promise<SearchResponse> {
@@ -99,23 +135,17 @@ async function searchLeadPresence(lead: Establishment): Promise<{ items: SearchI
   const location = [lead.details.neighbourhood, lead.details.city, lead.details.state].filter(Boolean).join(" ");
   const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
   const phone = lead.contact.phoneDigits ?? "";
-  const email = lead.contact.email ?? "";
-
   const identity = [`"${cleanName}"`, location ? `"${location}"` : "", address ? `"${address}"` : ""].filter(Boolean).join(" ");
-  const socialQuery = `${identity} (site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com OR site:linkedin.com)`;
-  const websiteQuery = `${identity} -site:instagram.com -site:facebook.com -site:tiktok.com -site:youtube.com -site:linkedin.com -site:x.com -site:twitter.com -site:tripadvisor.com -site:yelp.com -site:ifood.com.br -site:rappi.com.br -site:ubereats.com`;
-  const contactQuery = phone ? `"${phone}" "${cleanName}"` : email ? `"${email}"` : `"${cleanName}" "${location}"`;
-
-  const [social, website, contact] = await Promise.all([googleSearch(socialQuery), googleSearch(websiteQuery), googleSearch(contactQuery)]);
-  return {
-    items: [...social.items, ...website.items, ...contact.items],
-    successfulQueries: Number(social.ok) + Number(website.ok) + Number(contact.ok),
-  };
+  const query = phone
+    ? `${identity} "${phone}" (site:instagram.com OR site:wa.me OR whatsapp)`
+    : `${identity} (site:instagram.com OR site:wa.me OR whatsapp OR site:tiktok.com OR site:facebook.com)`;
+  const response = await googleSearch(query);
+  return { items: response.items, successfulQueries: Number(response.ok) };
 }
 
-function contactConfidence(lead: Establishment): "high" | "medium" | "low" {
-  if (lead.contact.whatsappValid || lead.contact.email) return "high";
-  if (lead.contact.phoneDigits || lead.contact.instagramUrl || lead.contact.facebookUrl) return "medium";
+function contactConfidence(contact: EstablishmentContact): "high" | "medium" | "low" {
+  if (contact.whatsappValid || contact.email) return "high";
+  if (contact.phoneDigits || contact.instagramUrl || contact.facebookUrl) return "medium";
   return "low";
 }
 
@@ -132,72 +162,104 @@ function evidenceScore(lead: Establishment, item: SearchItem): { identity: numbe
   return { identity, context };
 }
 
-export async function verifyLead(lead: Establishment): Promise<LeadVerification> {
-  const confidence = contactConfidence(lead);
+export async function verifyLead(lead: Establishment): Promise<VerificationResult> {
+  const existingWebsite = Boolean(lead.signals.website || lead.contact.websiteUrl);
+  const existingInstagram = Boolean(lead.signals.instagram || lead.contact.instagramUrl);
+  const existingWhatsApp = Boolean(lead.contact.whatsappValid);
+  const initialContact: EstablishmentContact = { ...lead.contact };
+  const confidence = contactConfidence(initialContact);
   const empty: LeadVerification = {
     status: "unverified",
     score: 0,
     reasons: ["Verificação web indisponível: configure GOOGLE_SEARCH_API_KEY e GOOGLE_SEARCH_CX no Render."],
     checked: false,
-    foundDigitalPresence: false,
-    foundWebsite: false,
+    foundDigitalPresence: existingWebsite || existingInstagram || existingWhatsApp,
+    foundWebsite: existingWebsite,
     contactConfidence: confidence,
   };
-  if (!externalVerificationConfigured()) return empty;
+  if (!externalVerificationConfigured()) return { ...empty, contact: initialContact };
 
-  const existingWebsite = Boolean(lead.signals.website || lead.contact.websiteUrl);
-  const existingSocial = Boolean(lead.signals.instagram || lead.signals.facebook || lead.contact.instagramUrl || lead.contact.facebookUrl);
-  const existingContact = Boolean(lead.contact.phoneDigits || lead.contact.email || lead.contact.whatsappValid);
   const search = await searchLeadPresence(lead);
-  if (search.successfulQueries === 0) return { ...empty, reasons: ["A busca web não respondeu. O lead não foi classificado para evitar falso positivo."] };
+  if (search.successfulQueries === 0) {
+    return {
+      status: "unverified",
+      score: 0,
+      reasons: ["A busca web não respondeu. O lead foi mantido sem inferir ausência de presença digital."],
+      checked: false,
+      foundDigitalPresence: existingWebsite || existingInstagram || existingWhatsApp,
+      foundWebsite: existingWebsite,
+      contactConfidence: confidence,
+      contact: initialContact,
+    };
+  }
 
   let foundWebsite = existingWebsite;
-  let foundDigitalPresence = existingWebsite || existingSocial;
+  let foundInstagram = existingInstagram;
+  let foundWhatsApp = existingWhatsApp;
+  const contact: EstablishmentContact = { ...initialContact };
   const reasons: string[] = [];
-
-  if (existingWebsite) reasons.push("O cadastro já informa um site próprio.");
-  if (existingSocial) reasons.push("O cadastro já informa uma rede social.");
 
   for (const item of search.items) {
     const link = item.link ?? "";
     if (!link) continue;
     const { identity, context } = evidenceScore(lead, item);
     const identityStrong = identity >= 0.75 || (tokens(lead.name).length <= 2 && identity >= 1);
-    const contextual = context >= 0.25;
+    const contextual = context >= 0.25 || (lead.details.city ? normalize(item.title ?? "").includes(normalize(lead.details.city)) : false);
+    if (!identityStrong || !contextual) continue;
 
-    if (isSocial(link) && identityStrong && contextual) {
-      foundDigitalPresence = true;
-      reasons.push("Presença social encontrada com correspondência de nome e contexto.");
+    const instagramUrl = instagramFromLink(link);
+    if (instagramUrl) {
+      foundInstagram = true;
+      contact.instagramUrl = instagramUrl;
+      try {
+        const handle = new URL(instagramUrl).pathname.split("/").filter(Boolean)[0] ?? "";
+        contact.instagramHandle = handle ? `@${handle}` : contact.instagramHandle;
+      } catch {
+        // ignore malformed social URL after validation
+      }
+      reasons.push("Instagram encontrado pela busca web com correspondência de identidade e contexto.");
       continue;
     }
-    if (isLikelyOwnWebsite(link) && identityStrong && contextual) {
-      foundDigitalPresence = true;
+
+    const whatsappUrl = whatsappFromLink(link);
+    if (whatsappUrl) {
+      foundWhatsApp = true;
+      contact.whatsappUrl = whatsappUrl;
+      contact.whatsappValid = true;
+      reasons.push("WhatsApp encontrado pela busca web com correspondência de identidade e contexto.");
+      continue;
+    }
+
+    if (isLikelyOwnWebsite(link)) {
       foundWebsite = true;
-      reasons.push("Site próprio encontrado com correspondência de nome e contexto.");
-      continue;
+      contact.websiteUrl = link;
+      reasons.push("Site próprio encontrado pela busca web com correspondência de identidade e contexto.");
     }
   }
 
-  if (foundWebsite) {
-    return { status: "rejected", score: 0, reasons: [...new Set([...reasons, "O estabelecimento possui site próprio."])], checked: true, foundDigitalPresence: true, foundWebsite: true, contactConfidence: confidence };
-  }
-  if (foundDigitalPresence) {
-    return { status: "verified", score: 100, reasons: [...new Set([...reasons, "Foi encontrada presença digital do estabelecimento."])], checked: true, foundDigitalPresence: true, foundWebsite: false, contactConfidence: confidence };
-  }
+  const signalCount = Number(foundWebsite) + Number(foundInstagram) + Number(foundWhatsApp);
+  const foundDigitalPresence = signalCount > 0;
+  const nextContactConfidence = contactConfidence(contact);
+  const status: VerificationStatus = foundWebsite ? "rejected" : "verified";
+  const score = foundWebsite ? 0 : 100;
+  const finalReasons = [...new Set([
+    ...reasons,
+    foundWebsite
+      ? "O estabelecimento possui site próprio confirmado pela busca web."
+      : foundDigitalPresence
+        ? "Foi encontrada presença digital relevante para os critérios de Sinal Zero."
+        : "Nenhuma presença digital relevante para site, Instagram ou WhatsApp foi confirmada pela busca web.",
+  ])];
 
-  const noEvidenceReason = search.items.length === 0
-    ? "Nenhuma presença digital correspondente foi encontrada nas consultas externas."
-    : existingContact
-      ? "As consultas externas não encontraram site ou rede social com identificação suficientemente forte; contatos existentes não contam como presença digital."
-      : "As consultas externas não encontraram site ou rede social com identificação suficientemente forte.";
   return {
-    status: "verified",
-    score: 100,
-    reasons: [...new Set([...reasons, noEvidenceReason])],
+    status,
+    score,
+    reasons: finalReasons,
     checked: true,
-    foundDigitalPresence: false,
-    foundWebsite: false,
-    contactConfidence: confidence,
+    foundDigitalPresence,
+    foundWebsite,
+    contactConfidence: nextContactConfidence,
+    contact,
   };
 }
 
@@ -206,7 +268,32 @@ export async function verifyLeads(leads: Establishment[]): Promise<(Establishmen
   const concurrency = 5;
   for (let i = 0; i < leads.length; i += concurrency) {
     const batch = leads.slice(i, i + concurrency);
-    const verified = await Promise.all(batch.map(async (lead) => ({ ...lead, verification: await verifyLead(lead) })));
+    const verified = await Promise.all(batch.map(async (lead) => {
+      const verification = await verifyLead(lead);
+      const contact = verification.contact;
+      const website = Boolean(lead.signals.website || contact.websiteUrl || verification.foundWebsite);
+      const instagram = Boolean(lead.signals.instagram || contact.instagramUrl);
+      const whatsapp = Boolean(contact.whatsappValid);
+      const signalCount = Number(website) + Number(instagram) + Number(whatsapp);
+      const level = signalCount >= 2 ? "full" : signalCount === 1 ? "weak" : "zero";
+      return {
+        ...lead,
+        contact,
+        contactable: Boolean(contact.whatsappValid || contact.instagramUrl),
+        signals: { ...lead.signals, website, instagram },
+        signalCount,
+        level,
+        verification: {
+          status: verification.status,
+          score: verification.score,
+          reasons: verification.reasons,
+          checked: verification.checked,
+          foundDigitalPresence: verification.foundDigitalPresence,
+          foundWebsite: verification.foundWebsite,
+          contactConfidence: verification.contactConfidence,
+        },
+      };
+    }));
     output.push(...verified);
   }
   return output;
