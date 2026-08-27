@@ -6,8 +6,8 @@ import {
   Instagram,
   Mail,
   MapPin,
+  MessageCircle,
   Navigation,
-  Phone,
   Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,9 +65,12 @@ export function PlaceRow({ place, active, saved, onSelect, onToggleSave }: Place
           {details.openingHours && <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3 shrink-0" /><span className="line-clamp-1">{details.openingHours}</span></p>}
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {contact.whatsappUrl && contact.whatsappValid && <a href={contact.whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-signal-zero/40 bg-signal-zero/10 px-2.5 py-1 text-[11px] font-medium text-signal-zero transition-transform hover:scale-[1.03] hover:bg-signal-zero/20"><Phone className="h-3 w-3" />WhatsApp</a>}
+            {contact.whatsappUrl && contact.whatsappValid && (
+              <a href={contact.whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-signal-zero/40 bg-signal-zero/10 px-2.5 py-1 text-[11px] font-medium text-signal-zero transition-transform hover:scale-[1.03] hover:bg-signal-zero/20">
+                <MessageCircle className="h-3 w-3" />WhatsApp
+              </a>
+            )}
             {contact.instagramUrl && <a href={contact.instagramUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-cyan/40 bg-cyan/10 px-2.5 py-1 text-[11px] font-medium text-cyan transition-transform hover:scale-[1.03] hover:bg-cyan/20"><Instagram className="h-3 w-3" />{contact.instagramHandle ?? "Instagram"}</a>}
-            {!contact.whatsappUrl && contact.phoneRaw && <a href={`tel:${contact.phoneDigits}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground transition-transform hover:scale-[1.03] hover:bg-accent"><Phone className="h-3 w-3" />{contact.phoneRaw}</a>}
             {contact.websiteUrl && <a href={contact.websiteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground transition-transform hover:scale-[1.03] hover:bg-accent"><Globe className="h-3 w-3" />Site</a>}
             {contact.email && <a href={`mailto:${contact.email}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground transition-transform hover:scale-[1.03] hover:bg-accent"><Mail className="h-3 w-3" />E-mail</a>}
             <a href={place.directionsUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground transition-transform hover:scale-[1.03] hover:bg-accent"><Navigation className="h-3 w-3" />Rotas</a>
