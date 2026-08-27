@@ -85,11 +85,12 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
 
   const pick = async (suggestion: SearchSuggestion) => {
     if (suggestion.kind === "place") {
-      pickedLabelRef.current = suggestion.value.shortLabel;
+      const place = suggestion.value;
+      pickedLabelRef.current = place.shortLabel;
       setSuggestions([]);
-      setValue(suggestion.value.shortLabel);
+      setValue(place.shortLabel);
       setOpen(false);
-      onPick(suggestion.value);
+      onPick(place);
       return;
     }
 
@@ -159,10 +160,32 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
           </div>
           <ul className="max-h-[min(18rem,55vh)] overflow-y-auto overscroll-contain">
             {suggestions.map((suggestion, index) => {
+              if (suggestion.kind === "municipality") {
+                const municipality = suggestion.value;
+                return (
+                  <li key={`${municipality.id}-${municipality.uf}`}>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setHighlight(index)}
+                      onClick={() => void pick(suggestion)}
+                      className={cn(
+                        "flex min-h-12 w-full items-start gap-2 px-3 py-2.5 text-left transition-all duration-100 active:scale-[.99]",
+                        index === highlight ? "bg-muted" : "hover:bg-muted/60",
+                      )}
+                    >
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-semibold text-foreground sm:text-sm">{municipality.shortLabel}</span>
+                        <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 text-muted-foreground sm:text-[11px]">Município brasileiro · IBGE</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
+
               const place = suggestion.value;
-              const municipality = suggestion.kind === "municipality";
               return (
-                <li key={municipality ? `${place.id}-${place.uf}` : `${place.lat}-${place.lon}-${index}`}>
+                <li key={`${place.lat}-${place.lon}-${index}`}>
                   <button
                     type="button"
                     onMouseEnter={() => setHighlight(index)}
@@ -175,9 +198,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-semibold text-foreground sm:text-sm">{place.shortLabel}</span>
-                      <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 text-muted-foreground sm:text-[11px]">
-                        {municipality ? "Município brasileiro · IBGE" : place.label}
-                      </span>
+                      <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 text-muted-foreground sm:text-[11px]">{place.label}</span>
                     </span>
                   </button>
                 </li>
