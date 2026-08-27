@@ -47,11 +47,14 @@ function categoryMatches(lead: Establishment, categories: CategoryKey[]): boolea
   }));
 }
 
+// The contact filter is intentionally exclusive to the two channels the user wants.
+// A phone number, e-mail, website or Facebook page must never make a lead pass.
 function hasContact(lead: Establishment): boolean {
   return Boolean(
-    lead.contact.whatsappValid || lead.contact.phoneDigits || lead.contact.email ||
-    lead.contact.instagramUrl || lead.contact.facebookUrl || lead.contact.websiteUrl ||
-    lead.signals.phone || lead.signals.email || lead.signals.instagram || lead.signals.facebook
+    lead.contact.whatsappValid ||
+    lead.contact.instagramUrl ||
+    lead.signals.whatsapp ||
+    lead.signals.instagram
   );
 }
 
