@@ -78,7 +78,7 @@ export function PlaceRow({ place, active, saved, onSelect, onToggleSave }: Place
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <SignalBadge level={place.level} />
+          <SignalBadge signalCount={place.signalCount} />
           <button type="button" aria-label={saved ? "Remover dos salvos" : "Salvar lead"} onClick={(e) => { e.stopPropagation(); onToggleSave(place); }} className="rounded-full border border-border p-1.5 text-muted-foreground transition-all hover:scale-105 hover:bg-accent hover:text-foreground">
             {saved ? <BookmarkCheck className="h-3.5 w-3.5 text-primary" /> : <Bookmark className="h-3.5 w-3.5" />}
           </button>
