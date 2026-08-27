@@ -1,7 +1,7 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Map, Radar, Rows3 } from "lucide-react";
-import { searchOverpassServer, verifyLeadsServer, type PlaceSuggestion } from "@/lib/geo.functions";
+import { searchOverpassServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
 import { getSavedLeads, isLeadSaved, removeLead, saveLead } from "@/lib/saved-leads";
 import type { CategoryKey, Establishment, SavedLead, SortKey } from "@/lib/types";
@@ -95,56 +95,32 @@ function Index() {
     return true;
   });
 
-  const verifyPresence = async (leads: Establishment[], scanId: number, signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
-    if (scanId !== scanIdRef.current) return;
-    const localCandidates = applyPresenceFilter(leads, signalZero, noWebsite);
+  const applyCurrentPresenceFilters = (leads: Establishment[], signalZero: boolean, noWebsite: boolean, mode: VerificationMode) => {
+    if (!signalZero && !noWebsite) return leads;
+    const filtered = applyPresenceFilter(leads, signalZero, noWebsite);
     setVerificationMode("off");
-    setResults(localCandidates);
-    setError(localCandidates.length === 0 ? (
+    setResults(filtered);
+    setError(filtered.length === 0 ? (
       mode === "signal-zero" ? "Nenhum estabelecimento com Sinal Zero foi encontrado nessa pesquisa." :
       mode === "no-website" ? "Nenhum estabelecimento sem site foi encontrado nessa pesquisa." :
       "Nenhum estabelecimento satisfaz os filtros de presença selecionados."
     ) : null);
-
-    // Never access process.env in the browser. Server-side configuration is
-    // already handled by verifyLeadsServer/externalVerificationConfigured.
-    if (!localCandidates.length) return;
-
-    try {
-      const verified = await verifyLeadsServer({ data: { leads: localCandidates } });
-      if (scanId !== scanIdRef.current) return;
-      if (!verified.external) return;
-
-      setVerificationMode("external");
-      const refined = verified.leads.filter((lead) => {
-        if (!lead.verification.checked) return true;
-        if (signalZero && lead.verification.foundDigitalPresence) return false;
-        if (noWebsite && lead.verification.foundWebsite) return false;
-        return true;
-      });
-      setResults(refined);
-      setError(refined.length === 0 ? "Nenhum lead passou pelos filtros de presença selecionados." : null);
-    } catch {
-      if (scanId === scanIdRef.current) setVerificationMode("off");
-    }
+    setScanning(false);
   };
 
   const runVerificationForCurrentFilters = (signalZero: boolean, noWebsite: boolean, source = allResults, selected = categories) => {
     const categoryResults = filterByCategory(source, selected);
-    const scanId = ++scanIdRef.current;
+    ++scanIdRef.current;
     setError(null);
     setSelectedId(null);
+    setVerificationMode("off");
+    setResults(categoryResults);
     if (!signalZero && !noWebsite) {
-      setVerificationMode("off");
-      setResults(categoryResults);
       setScanning(false);
       return;
     }
-    setScanning(true);
     const mode: VerificationMode = signalZero && noWebsite ? "both" : signalZero ? "signal-zero" : "no-website";
-    void verifyPresence(categoryResults, scanId, signalZero, noWebsite, mode).finally(() => {
-      if (scanId === scanIdRef.current) setScanning(false);
-    });
+    applyCurrentPresenceFilters(categoryResults, signalZero, noWebsite, mode);
   };
 
   const runScan = async (target: PlaceSuggestion) => {
@@ -170,9 +146,7 @@ function Index() {
       }
       if (signalZeroOnly || noWebsiteOnly) {
         const mode: VerificationMode = signalZeroOnly && noWebsiteOnly ? "both" : signalZeroOnly ? "signal-zero" : "no-website";
-        void verifyPresence(processed, scanId, signalZeroOnly, noWebsiteOnly, mode).finally(() => {
-          if (scanId === scanIdRef.current) setScanning(false);
-        });
+        applyCurrentPresenceFilters(processed, signalZeroOnly, noWebsiteOnly, mode);
       } else {
         setResults(processed);
       }
@@ -180,7 +154,7 @@ function Index() {
       if (scanId !== scanIdRef.current) return;
       setError(err instanceof Error ? err.message : "Erro ao pesquisar a área.");
     } finally {
-      if (scanId === scanIdRef.current && !signalZeroOnly && !noWebsiteOnly) setScanning(false);
+      if (scanId === scanIdRef.current) setScanning(false);
     }
   };
 
