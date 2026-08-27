@@ -1,5 +1,6 @@
-import { createFileRoute, ClientOnly, useServerFn } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Map, Radar, Rows3 } from "lucide-react";
 import { searchOverpassServer, verifyLeadsServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
