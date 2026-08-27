@@ -9,10 +9,29 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
+  vite: {
+    build: {
+      rollupOptions: {
+        external: [
+          "@duckdb/node-api",
+          "@duckdb/node-bindings",
+          "@duckdb/node-bindings-linux-x64",
+        ],
+      },
+    },
+  },
   nitro: {
     preset: "node-server",
     output: {
       dir: ".output",
+    },
+    externals: {
+      inline: [],
+      external: [
+        "@duckdb/node-api",
+        "@duckdb/node-bindings",
+        "@duckdb/node-bindings-linux-x64",
+      ],
     },
   },
 });
