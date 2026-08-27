@@ -65,7 +65,7 @@ export function SavedLeadsDrawer({ leads, onRemove }: SavedLeadsDrawerProps) {
                           {lead.category}
                         </p>
                       </div>
-                      <SignalBadge level={lead.level} />
+                      <SignalBadge signalCount={lead.signalCount} />
                     </div>
                     <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
                       {lead.address || "Sem endereço"}
