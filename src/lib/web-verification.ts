@@ -17,12 +17,15 @@ type SearchItem = { link?: string; title?: string; snippet?: string };
 type SearchResponse = { items: SearchItem[]; ok: boolean };
 
 /**
- * Star Filter is intentionally 100% free to operate.
- * Do not add Google Places, Google Custom Search, SerpAPI, DataForSEO,
- * or any other paid search provider here.
+ * Google Custom Search is intentionally kept as the configurable web-search
+ * provider. Google Places is not used anywhere in this file.
  */
+function env(name: string): string | undefined {
+  return typeof process !== "undefined" ? process.env[name]?.trim() || undefined : undefined;
+}
+
 export function externalVerificationConfigured(): boolean {
-  return true;
+  return Boolean(env("GOOGLE_SEARCH_API_KEY") && env("GOOGLE_SEARCH_CX"));
 }
 
 function normalize(value: string): string {
@@ -106,7 +109,6 @@ function isDirectory(link: string): boolean {
     "wikipedia.org",
     "wikidata.org",
     "openstreetmap.org",
-    "facebook.com",
   ].some((domain) => value === domain || value.endsWith(`.${domain}`));
 }
 
@@ -116,81 +118,31 @@ function isLikelyOwnWebsite(link: string): boolean {
   return Boolean(value && !value.endsWith(".gov.br") && !value.endsWith(".edu.br"));
 }
 
-/**
- * Free web discovery using DuckDuckGo's public HTML search endpoint.
- * This is a best-effort second signal only; OSM/Overpass remains the
- * primary structured source. No API key or paid account is required.
- */
-async function freeWebSearch(query: string): Promise<SearchResponse> {
-  const url = new URL("https://html.duckduckgo.com/html/");
+async function googleSearch(query: string): Promise<SearchResponse> {
+  const key = env("GOOGLE_SEARCH_API_KEY");
+  const cx = env("GOOGLE_SEARCH_CX");
+  if (!key || !cx) return { items: [], ok: false };
+
+  const url = new URL("https://customsearch.googleapis.com/customsearch/v1");
+  url.searchParams.set("key", key);
+  url.searchParams.set("cx", cx);
   url.searchParams.set("q", query);
-  url.searchParams.set("kl", "br-pt");
+  url.searchParams.set("num", "10");
+  url.searchParams.set("hl", "pt-BR");
+  url.searchParams.set("gl", "br");
 
   try {
     const response = await fetchWithTimeout(
       url.toString(),
-      {
-        headers: {
-          Accept: "text/html,application/xhtml+xml",
-          "User-Agent": "Mozilla/5.0 (compatible; StarFilter/1.0; +https://github.com/WattIQs/star-filter-fix)",
-        },
-      },
-      7000,
+      { headers: { Accept: "application/json" } },
+      6000,
     );
-
     if (!response.ok) return { items: [], ok: false };
-    const html = await response.text();
-    const items: SearchItem[] = [];
-
-    // DuckDuckGo result pages use result__a/result__snippet. Keep parsing
-    // deliberately conservative so malformed search pages cannot create
-    // false positives.
-    const resultPattern = /<a[^>]+class=["'][^"']*result__a[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
-    let match: RegExpExecArray | null;
-    while ((match = resultPattern.exec(html)) && items.length < 10) {
-      const link = decodeHtml(match[1]);
-      const title = stripHtml(match[2]);
-      const snippet = stripHtml(match[3]);
-      if (link && /^https?:\/\//i.test(link)) items.push({ link, title, snippet });
-    }
-
-    // Some DDG responses change the snippet markup. Fall back to result
-    // anchors alone, but never treat a search-provider URL as evidence.
-    if (!items.length) {
-      const anchorPattern = /<a[^>]+class=["'][^"']*result__a[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-      while ((match = anchorPattern.exec(html)) && items.length < 10) {
-        const link = decodeHtml(match[1]);
-        const title = stripHtml(match[2]);
-        if (link && /^https?:\/\//i.test(link)) items.push({ link, title });
-      }
-    }
-
-    return { items, ok: true };
+    const data = (await response.json()) as { items?: SearchItem[] };
+    return { items: data.items ?? [], ok: true };
   } catch {
     return { items: [], ok: false };
   }
-}
-
-function stripHtml(value: string): string {
-  return decodeHtml(
-    value
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim(),
-  );
-}
-
-function decodeHtml(value: string): string {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#x2F;/gi, "/")
-    .replace(/&#47;/g, "/");
 }
 
 async function searchLeadPresence(
@@ -203,6 +155,7 @@ async function searchLeadPresence(
   const address = [lead.details.street, lead.details.housenumber].filter(Boolean).join(" ");
   const phone = lead.contact.phoneDigits ?? "";
   const email = lead.contact.email ?? "";
+
   const identity = [`"${cleanName}"`, location ? `"${location}"` : "", address ? `"${address}"` : ""]
     .filter(Boolean)
     .join(" ");
@@ -215,7 +168,7 @@ async function searchLeadPresence(
     email ? `"${email}"` : "",
   ].filter(Boolean);
 
-  const responses = await Promise.all(queries.map((query) => freeWebSearch(query)));
+  const responses = await Promise.all(queries.map((query) => googleSearch(query)));
   return {
     items: responses.flatMap((response) => response.items),
     successfulQueries: responses.filter((response) => response.ok).length,
@@ -255,17 +208,18 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
   const empty: LeadVerification = {
     status: "unverified",
     score: 0,
-    reasons: ["Verificação web gratuita indisponível no momento."],
+    reasons: ["Verificação web indisponível; confira as fontes gratuitas configuradas."],
     checked: false,
     foundDigitalPresence: false,
     foundWebsite: false,
     contactConfidence: confidence,
   };
 
+  if (!externalVerificationConfigured()) return empty;
+
   const existingWebsite = Boolean(lead.signals.website || lead.contact.websiteUrl);
   const existingSocial = Boolean(lead.signals.instagram || lead.contact.instagramUrl);
   const search = await searchLeadPresence(lead);
-
   if (search.successfulQueries === 0) return empty;
 
   let foundWebsite = existingWebsite;
@@ -321,15 +275,17 @@ export async function verifyLead(lead: Establishment): Promise<LeadVerification>
     };
   }
 
-  const noEvidenceReason =
-    search.items.length === 0
-      ? "Nenhuma presença digital correspondente foi encontrada nas fontes gratuitas consultadas."
-      : "As fontes gratuitas não encontraram site ou rede social com identificação suficientemente forte.";
-
   return {
     status: "verified",
     score: 100,
-    reasons: [...new Set([...reasons, noEvidenceReason])],
+    reasons: [
+      ...new Set([
+        ...reasons,
+        search.items.length === 0
+          ? "Nenhuma presença digital correspondente foi encontrada nas fontes externas gratuitas."
+          : "As fontes externas gratuitas não encontraram site ou rede social com identificação suficientemente forte.",
+      ]),
+    ],
     checked: true,
     foundDigitalPresence: false,
     foundWebsite: false,
