@@ -81,7 +81,7 @@ export type CategoryKey =
   | "dentist" | "doctor" | "clinic" | "veterinary" | "car_repair" | "car_wash" | "car_dealer" | "fuel"
   | "laundry" | "florist" | "furniture" | "electronics" | "mobile_phone" | "computer" | "sports" | "books"
   | "toys" | "gift" | "optician" | "jewelry" | "travel_agency" | "real_estate" | "insurance" | "bank"
-  | "accountant" | "lawyer" | "photographer" | "printing" | "locksmith" | "plumber" | "electrician";
+  | "accountant" | "lawyer" | "photographer" | "printing" | "locksmith";
 
 export interface CategoryDef { label: string; filters: { key: string; values: string[] }[]; }
 
@@ -131,8 +131,6 @@ export const CATEGORIES: Record<CategoryKey, CategoryDef> = {
   photographer: { label: "Fotógrafos", filters: [{ key: "shop", values: ["photo"] }] },
   printing: { label: "Gráficas / Impressão", filters: [{ key: "shop", values: ["copyshop", "printing"] }] },
   locksmith: { label: "Chaveiros", filters: [{ key: "craft", values: ["locksmith"] }] },
-  plumber: { label: "Encanadores", filters: [{ key: "craft", values: ["plumber"] }] },
-  electrician: { label: "Eletricistas", filters: [{ key: "craft", values: ["electrician"] }] },
 };
 
 export const CATEGORY_LABELS: Record<CategoryKey, string> = Object.fromEntries(
@@ -150,7 +148,7 @@ export const OSM_VALUE_LABELS: Record<string, string> = {
   laundry: "Lavanderia", furniture: "Móveis / Decoração", interior_decoration: "Decoração", electronics: "Eletrônicos", mobile_phone: "Celulares",
   computer: "Informática", sports: "Artigos esportivos", books: "Livraria", toys: "Brinquedos", gift: "Presentes", optician: "Ótica",
   travel_agency: "Agência de viagens", estate_agent: "Imobiliária", insurance: "Seguros", bank: "Banco", accountant: "Contabilidade", lawyer: "Advocacia",
-  photo: "Fotógrafo", copyshop: "Gráfica / Copiadora", printing: "Impressão", locksmith: "Chaveiro", plumber: "Encanador", electrician: "Eletricista",
+  photo: "Fotógrafo", copyshop: "Gráfica / Copiadora", printing: "Impressão", locksmith: "Chaveiro",
 };
 
 export type SortKey = "relevance" | "rating_desc" | "rating_asc" | "price_desc" | "price_asc" | "name_asc";
