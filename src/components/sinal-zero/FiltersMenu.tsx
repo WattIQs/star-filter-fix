@@ -2,7 +2,9 @@ import { Check, ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-r
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SORT_LABELS, type SignalFilter, type SortKey } from "@/lib/types";
+import { SORT_LABELS, type SortKey } from "@/lib/types";
+
+type SignalFilter = "all" | "zero" | "weak" | "medium" | "high";
 
 interface FiltersMenuProps {
   ratingFilters: string[];
