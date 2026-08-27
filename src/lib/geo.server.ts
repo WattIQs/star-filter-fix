@@ -22,7 +22,7 @@ export async function fetchWithTimeout(
   }
 }
 
-export async function queryOverpass(query: string): Promise<OverpassElement[]> {
+export async function queryOverpass(query: string): Promise<OverpassElement[] | null> {
   for (const mirror of OVERPASS_MIRRORS) {
     try {
       const response = await fetchWithTimeout(
@@ -44,5 +44,5 @@ export async function queryOverpass(query: string): Promise<OverpassElement[]> {
       // Try the next Overpass mirror.
     }
   }
-  return [];
+  return null;
 }
