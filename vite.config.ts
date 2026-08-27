@@ -25,13 +25,5 @@ export default defineConfig({
     output: {
       dir: ".output",
     },
-    externals: {
-      inline: [],
-      external: [
-        "@duckdb/node-api",
-        "@duckdb/node-bindings",
-        "@duckdb/node-bindings-linux-x64",
-      ],
-    },
   },
 });
