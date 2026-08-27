@@ -1,4 +1,4 @@
-import type { Establishment, EstablishmentContact } from "./types";
+import type { Establishment, EstablishmentContact, SignalLevel } from "./types";
 import { fetchWithTimeout } from "./geo.server";
 
 export type VerificationStatus = "verified" | "rejected" | "unverified";
@@ -275,7 +275,7 @@ export async function verifyLeads(leads: Establishment[]): Promise<(Establishmen
       const instagram = Boolean(lead.signals.instagram || contact.instagramUrl);
       const whatsapp = Boolean(contact.whatsappValid);
       const signalCount = Number(website) + Number(instagram) + Number(whatsapp);
-      const level = signalCount >= 2 ? "full" : signalCount === 1 ? "weak" : "zero";
+      const level: SignalLevel = signalCount >= 2 ? "full" : signalCount === 1 ? "weak" : "zero";
       return {
         ...lead,
         contact,
