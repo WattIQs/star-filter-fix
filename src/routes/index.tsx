@@ -16,6 +16,8 @@ import { SavedLeadsDrawer } from "@/components/sinal-zero/SavedLeadsDrawer";
 
 const MapCanvas = lazy(() => import("@/components/sinal-zero/MapCanvas"));
 
+type SignalFilter = "all" | "zero" | "weak" | "medium" | "high";
+
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
     { title: "Sinal Zero — Mapa de negócios" },
@@ -55,9 +57,19 @@ function hasWebsite(lead: Establishment): boolean {
   return Boolean(lead.signals.website || lead.contact.websiteUrl);
 }
 
-function applyPresenceFilters(leads: Establishment[], signalZero: boolean, noWebsite: boolean): Establishment[] {
+function matchesSignalFilter(lead: Establishment, filter: SignalFilter): boolean {
+  switch (filter) {
+    case "zero": return lead.signalCount === 0;
+    case "weak": return lead.signalCount === 1;
+    case "medium": return lead.signalCount === 2;
+    case "high": return lead.signalCount === 3;
+    default: return true;
+  }
+}
+
+function applyPresenceFilters(leads: Establishment[], signalFilter: SignalFilter, noWebsite: boolean): Establishment[] {
   return leads.filter((lead) => {
-    if (signalZero && lead.level !== "zero") return false;
+    if (!matchesSignalFilter(lead, signalFilter)) return false;
     if (noWebsite && hasWebsite(lead)) return false;
     return true;
   });
@@ -73,7 +85,7 @@ function Index() {
   const [categories, setCategories] = useState<CategoryKey[]>(DEFAULT_CATEGORIES);
   const [ratingFilters, setRatingFilters] = useState<string[]>([]);
   const [priceFilter, setPriceFilter] = useState("any");
-  const [signalZeroOnly, setSignalZeroOnly] = useState(false);
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
   const [contactOnly, setContactOnly] = useState(false);
   const [noWebsiteOnly, setNoWebsiteOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("relevance");
@@ -96,8 +108,8 @@ function Index() {
 
   const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
 
-  const applyCurrentFilters = (source: Establishment[], selectedCategories = categories, signalZero = signalZeroOnly, noWebsite = noWebsiteOnly) => {
-    const next = applyPresenceFilters(filterByCategory(source, selectedCategories), signalZero, noWebsite);
+  const applyCurrentFilters = (source: Establishment[], selectedCategories = categories, selectedSignal = signalFilter, noWebsite = noWebsiteOnly) => {
+    const next = applyPresenceFilters(filterByCategory(source, selectedCategories), selectedSignal, noWebsite);
     setResults(next);
     setError(next.length === 0 && source.length > 0 ? "Nenhum resultado para os filtros atuais." : null);
   };
@@ -124,17 +136,17 @@ function Index() {
     }
   };
 
-  const refreshPresenceFilters = async (source: Establishment[], signalZero = signalZeroOnly, noWebsite = noWebsiteOnly) => {
-    const needsVerification = signalZero || noWebsite || contactOnly;
+  const refreshPresenceFilters = async (source: Establishment[], selectedSignal = signalFilter, noWebsite = noWebsiteOnly) => {
+    const needsVerification = selectedSignal !== "all" || noWebsite || contactOnly;
     if (!needsVerification) {
-      applyCurrentFilters(source, categories, signalZero, noWebsite);
+      applyCurrentFilters(source, categories, selectedSignal, noWebsite);
       return;
     }
     setResults([]);
     const enriched = await enrichPresence(source);
     if (enriched) {
       setAllResults(enriched);
-      applyCurrentFilters(enriched, categories, signalZero, noWebsite);
+      applyCurrentFilters(enriched, categories, selectedSignal, noWebsite);
     }
   };
 
@@ -154,13 +166,13 @@ function Index() {
       const data = await searchPlaces({ data: { area: target.boundingBox ?? { south: target.lat - 0.025, north: target.lat + 0.025, west: target.lon - 0.03, east: target.lon + 0.03 }, categories } });
       if (scanId !== scanIdRef.current) return;
       const processed = processOverpassResults(data.elements, categories);
-      if (signalZeroOnly || contactOnly || noWebsiteOnly) {
+      if (signalFilter !== "all" || contactOnly || noWebsiteOnly) {
         setResults([]);
         const enriched = await enrichPresence(processed, scanId);
         if (scanId !== scanIdRef.current) return;
         if (enriched) {
           setAllResults(enriched);
-          applyCurrentFilters(enriched, categories, signalZeroOnly, noWebsiteOnly);
+          applyCurrentFilters(enriched, categories, signalFilter, noWebsiteOnly);
         }
       } else {
         setAllResults(processed);
@@ -189,7 +201,7 @@ function Index() {
   const handleCategoriesChange = (next: CategoryKey[]) => {
     setCategories(next);
     setError(null);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalZeroOnly, noWebsiteOnly);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilter, noWebsiteOnly);
   };
 
   const handleToggleSave = (lead: Establishment) => {
@@ -197,19 +209,19 @@ function Index() {
     setSavedLeads(getSavedLeads());
   };
 
-  const handleSignalZeroChange = (enabled: boolean) => {
-    setSignalZeroOnly(enabled);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, enabled, noWebsiteOnly);
+  const handleSignalFilterChange = (next: SignalFilter) => {
+    setSignalFilter(next);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, next, noWebsiteOnly);
   };
 
   const handleContactChange = (enabled: boolean) => {
     setContactOnly(enabled);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalZeroOnly, noWebsiteOnly);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilter, noWebsiteOnly);
   };
 
   const handleNoWebsiteChange = (enabled: boolean) => {
     setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalZeroOnly, enabled);
+    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilter, enabled);
   };
 
   const visibleResults = useMemo(() => {
@@ -234,16 +246,18 @@ function Index() {
     return sorted;
   }, [results, categories, contactOnly, ratingFilters, priceFilter, sortKey]);
 
+  const signalTitle = signalFilter === "all" ? "Estabelecimentos" : `Sinal ${signalFilter === "zero" ? "Zero" : signalFilter === "weak" ? "Fraco" : signalFilter === "medium" ? "Médio" : "Alto"}`;
+
   return (
     <div className="flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground lg:h-screen">
       <header className="relative z-[3000] shrink-0 border-b border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur lg:flex lg:min-h-14 lg:items-center lg:gap-3 lg:px-3">
         <div className="flex min-w-0 items-center gap-2"><div className="flex shrink-0 items-center gap-2"><Radar className="h-5 w-5 text-signal-zero" /><span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span></div><div className="min-w-0 flex-1 lg:hidden"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
         <div className="mt-2 min-w-0 lg:mt-0 lg:flex-1 lg:block"><div className="hidden lg:block"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
-        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalZeroOnly={signalZeroOnly} onSignalZeroOnlyChange={handleSignalZeroChange} contactOnly={contactOnly} onContactOnlyChange={handleContactChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /><ExportCsvButton /></div></div>
+        <div className="mt-2 flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:shrink-0"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalFilter={signalFilter} onSignalFilterChange={handleSignalFilterChange} contactOnly={contactOnly} onContactOnlyChange={handleContactChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /><ExportCsvButton /></div></div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:relative lg:flex-row lg:gap-3 lg:p-3">
         <div className="flex shrink-0 border-b border-border bg-card px-2 py-1.5 lg:hidden"><div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Área de trabalho"><button type="button" role="tab" aria-selected={mobileView === "leads"} onClick={() => setMobileView("leads")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "leads" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Rows3 className="h-4 w-4" />Leads <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{visibleResults.length}</span></button><button type="button" role="tab" aria-selected={mobileView === "map"} onClick={() => setMobileView("map")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "map" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><MapIcon className="h-4 w-4" />Mapa</button></div></div>
-        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}><div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalZeroOnly && noWebsiteOnly ? "Sinal Zero + sem site" : signalZeroOnly ? "Sinais Zero" : noWebsiteOnly ? "Sem site" : "Estabelecimentos"}</h2></div><span className="text-xs text-muted-foreground">{visibleResults.length}</span></div><div className="min-h-0 flex-1 overflow-auto p-2"><Suspense fallback={<MapSkeleton />}><div className="space-y-2">{visibleResults.map((place) => <PlaceRow key={place.id} place={place} active={selectedId === place.id} saved={savedLeads.some((saved) => saved.id === place.id)} onSelect={() => setSelectedId(place.id)} onToggleSave={handleToggleSave} />)}</div></Suspense>{visibleResults.length === 0 && !scanning && !verifyingPresence && <div className="p-6 text-center text-sm text-muted-foreground">{error ?? "Nenhum resultado para os filtros atuais."}</div>}{(scanning || verifyingPresence) && <div className="flex items-center justify-center p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />{scanning ? "Pesquisando..." : "Verificando presença digital..."}</div>}</div></aside>
+        <aside className={`relative z-20 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-card/60 lg:h-auto lg:w-[460px] lg:flex-none lg:rounded-xl lg:border ${mobileView === "leads" ? "" : "hidden"} lg:flex`}><div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-semibold">{signalTitle}{noWebsiteOnly ? " + sem site" : ""}</h2></div><span className="text-xs text-muted-foreground">{visibleResults.length}</span></div><div className="min-h-0 flex-1 overflow-auto p-2"><Suspense fallback={<MapSkeleton />}><div className="space-y-2">{visibleResults.map((place) => <PlaceRow key={place.id} place={place} active={selectedId === place.id} saved={savedLeads.some((saved) => saved.id === place.id)} onSelect={() => setSelectedId(place.id)} onToggleSave={handleToggleSave} />)}</div></Suspense>{visibleResults.length === 0 && !scanning && !verifyingPresence && <div className="p-6 text-center text-sm text-muted-foreground">{error ?? "Nenhum resultado para os filtros atuais."}</div>}{(scanning || verifyingPresence) && <div className="flex items-center justify-center p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />{scanning ? "Pesquisando..." : "Verificando presença digital..."}</div>}</div></aside>
         <section className={`relative min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/20 ${mobileView === "map" ? "" : "hidden lg:block"}`}><ClientOnly fallback={<MapSkeleton />}><MapCanvas center={center} places={visibleResults} selectedId={selectedId} onSelect={setSelectedId} /></ClientOnly></section>
       </div>
     </div>
