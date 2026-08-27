@@ -263,11 +263,31 @@ export async function verifyLead(lead: Establishment): Promise<VerificationResul
   };
 }
 
+function unverifiedResult(lead: Establishment): Establishment & { verification: LeadVerification } {
+  return {
+    ...lead,
+    verification: {
+      status: "unverified",
+      score: 0,
+      reasons: ["Verificação externa não executada neste lote para manter a pesquisa rápida."],
+      checked: false,
+      foundDigitalPresence: Boolean(lead.signals.website || lead.signals.instagram || lead.contact.whatsappValid || lead.contact.instagramUrl),
+      foundWebsite: Boolean(lead.signals.website || lead.contact.websiteUrl),
+      contactConfidence: contactConfidence(lead.contact),
+    },
+  };
+}
+
 export async function verifyLeads(leads: Establishment[]): Promise<(Establishment & { verification: LeadVerification })[]> {
+  // Não deixar uma cidade grande transformar um filtro em centenas de consultas sequenciais.
+  // O lote é limitado e as consultas são feitas em paralelo com um limite controlado.
+  const maxToVerify = 150;
+  const concurrency = 10;
+  const candidates = leads.slice(0, maxToVerify);
   const output: (Establishment & { verification: LeadVerification })[] = [];
-  const concurrency = 5;
-  for (let i = 0; i < leads.length; i += concurrency) {
-    const batch = leads.slice(i, i + concurrency);
+
+  for (let i = 0; i < candidates.length; i += concurrency) {
+    const batch = candidates.slice(i, i + concurrency);
     const verified = await Promise.all(batch.map(async (lead) => {
       const verification = await verifyLead(lead);
       const contact = verification.contact;
@@ -296,5 +316,8 @@ export async function verifyLeads(leads: Establishment[]): Promise<(Establishmen
     }));
     output.push(...verified);
   }
+
+  // Preserva os demais resultados, sem bloquear a pesquisa esperando por eles.
+  output.push(...leads.slice(maxToVerify).map(unverifiedResult));
   return output;
 }
