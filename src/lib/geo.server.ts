@@ -1,3 +1,5 @@
+import type { OverpassElement } from "./geo.functions";
+
 export const OSM_UA = "SinalZeroLeadScanner/1.0 (lead prospecting tool)";
 
 export const OVERPASS_MIRRORS = [
@@ -18,4 +20,29 @@ export async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function queryOverpass(query: string): Promise<OverpassElement[]> {
+  for (const mirror of OVERPASS_MIRRORS) {
+    try {
+      const response = await fetchWithTimeout(
+        mirror,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": OSM_UA,
+          },
+          body: `data=${encodeURIComponent(query)}`,
+        },
+        13000
+      );
+      if (!response.ok) continue;
+      const json = (await response.json()) as { elements?: OverpassElement[] };
+      return json.elements ?? [];
+    } catch {
+      // Try the next Overpass mirror.
+    }
+  }
+  return [];
 }
