@@ -10,63 +10,27 @@ interface CategoryMenuProps {
   onScan?: () => void;
   scanning?: boolean;
 }
-
 const ALL_KEYS = Object.keys(CATEGORY_LABELS) as CategoryKey[];
 
 export function CategoryMenu({ value, onChange, onScan, scanning = false }: CategoryMenuProps) {
   const toggle = (key: CategoryKey) => onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
-
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <Button
-        type="button"
-        onClick={onScan}
-        disabled={scanning || !onScan}
-        aria-label={scanning ? "Varrendo área" : "Varrer área"}
-        className={cn(
-          "group relative h-9 shrink-0 gap-2 overflow-visible rounded-lg border border-primary/30 px-3 text-xs font-semibold shadow-md transition-all duration-200",
-          "bg-primary text-primary-foreground hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-lg active:translate-y-0",
-          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-md",
-        )}
-      >
-        {scanning && <span className="pointer-events-none absolute -inset-1 animate-ping rounded-xl border border-primary/40 opacity-30" aria-hidden="true" />}
-        <span className="relative flex items-center gap-2">
-          {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-45" />}
-          <span>{scanning ? "Varrendo..." : "Varrer área"}</span>
-        </span>
+      <Button type="button" onClick={onScan} disabled={scanning || !onScan} aria-label={scanning ? "Varrendo área" : "Varrer área"} className={cn("group relative h-9 shrink-0 gap-2 overflow-visible rounded-lg border border-primary/30 px-3 text-xs font-semibold shadow-md transition-all duration-200", "bg-primary text-primary-foreground hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-[0_10px_30px_-16px_var(--color-primary)]", "disabled:cursor-not-allowed disabled:opacity-60")}>
+        {scanning && <span className="pointer-events-none absolute -inset-1 animate-ping rounded-xl border border-primary/40 opacity-25" aria-hidden="true" />}
+        <span className="relative flex items-center gap-2">{scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-45" />}<span>{scanning ? "Varrendo..." : "Varrer área"}</span></span>
       </Button>
-
       <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="relative z-[3001] shrink-0 gap-1.5 border-border bg-background text-xs shadow-sm hover:bg-accent">
-            <LayoutGrid className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Categorias</span>
-            {value.length > 0 && <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">{value.length}</span>}
-            <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={8} collisionPadding={12} className="z-[5000] w-[min(92vw,280px)] border-border bg-card p-2 shadow-2xl">
-          <div className="mb-2 flex items-center justify-between gap-2 px-1">
-            <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Categorias</span>
-              <span className="text-[10px] text-muted-foreground">Sem seleção = todas as categorias</span>
-            </div>
-            <button type="button" onClick={() => onChange(value.length === ALL_KEYS.length ? [] : ALL_KEYS)} className="shrink-0 text-[11px] text-primary hover:underline">
-              {value.length === ALL_KEYS.length ? "Limpar" : "Todas"}
-            </button>
+        <PopoverTrigger asChild><Button variant="outline" size="sm" className={cn("relative z-[3001] shrink-0 gap-1.5 border-border bg-background text-xs shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-accent", value.length > 0 && "border-primary/35 bg-primary/5")}><LayoutGrid className="h-3.5 w-3.5" /><span className="hidden sm:inline">Categorias</span>{value.length > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{value.length}</span>}<ChevronDown className="h-3.5 w-3.5 opacity-70" /></Button></PopoverTrigger>
+        <PopoverContent align="start" sideOffset={8} collisionPadding={12} className="z-[5000] w-[min(92vw,300px)] border-border bg-card/98 p-2.5 shadow-2xl backdrop-blur-xl">
+          <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+            <div><span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Categorias</span><span className="text-[10px] text-muted-foreground">Escolha uma ou mais áreas</span></div>
+            <button type="button" onClick={() => onChange(value.length === ALL_KEYS.length ? [] : ALL_KEYS)} className="rounded-md px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/10">{value.length === ALL_KEYS.length ? "Limpar" : "Todas"}</button>
           </div>
-          <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
-            {ALL_KEYS.map((key) => {
-              const active = value.includes(key);
-              return (
-                <button key={key} type="button" onClick={() => toggle(key)} className={cn("flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors", active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
-                  {CATEGORY_LABELS[key]}
-                  {active && <Check className="h-3.5 w-3.5" />}
-                </button>
-              );
-            })}
+          <div className="grid max-h-80 grid-cols-1 gap-1 overflow-y-auto pr-1 sm:grid-cols-2">
+            {ALL_KEYS.map((key) => { const active = value.includes(key); return <button key={key} type="button" onClick={() => toggle(key)} className={cn("flex min-h-9 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-[11px] font-medium transition-all duration-150", active ? "border-primary/25 bg-primary/10 text-primary shadow-sm" : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/70 hover:text-foreground")}>{CATEGORY_LABELS[key]}{active && <Check className="h-3.5 w-3.5 shrink-0" />}</button>; })}
           </div>
-          <p className="mt-2 border-t border-border pt-2 text-center text-[9px] text-muted-foreground">Selecione categorias para restringir a busca. Deixe vazio para procurar todos os estabelecimentos suportados.</p>
+          <p className="mt-2 border-t border-border/60 pt-2 text-center text-[9px] leading-relaxed text-muted-foreground">Sem seleção = buscar todas as categorias disponíveis.</p>
         </PopoverContent>
       </Popover>
     </div>
