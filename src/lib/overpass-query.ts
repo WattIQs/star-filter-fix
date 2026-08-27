@@ -20,6 +20,21 @@ function blocksForValues(area: string, key: string, values: string[]): string {
   return `nwr["${key}"~"^(${pattern})$"]["name"](${area});`;
 }
 
+function broadBlocks(area: string): string[] {
+  // When no category is selected, search all named records from the main
+  // establishment-oriented OSM keys instead of maintaining a small whitelist.
+  // This captures businesses that use perfectly valid OSM tags we do not label
+  // as a dedicated category yet.
+  return [
+    `nwr["amenity"]["name"](${area});`,
+    `nwr["shop"]["name"](${area});`,
+    `nwr["leisure"]["name"](${area});`,
+    `nwr["craft"]["name"](${area});`,
+    `nwr["tourism"]["name"](${area});`,
+    `nwr["healthcare"]["name"](${area});`,
+  ];
+}
+
 function generalBlocks(area: string): string[] {
   return Object.entries(SUPPORTED_BY_KEY).map(([key, values]) => blocksForValues(area, key, values));
 }
@@ -43,8 +58,10 @@ function categoryBlocks(area: string, categories: CategoryKey[]): string[] {
 }
 
 function buildQuery(area: string, categories: CategoryKey[]): string {
-  const blocks = categories.length > 0 ? categoryBlocks(area, categories) : generalBlocks(area);
-  return `[out:json][timeout:20];\n(\n${blocks.join("\n")}\n);\nout center tags;`;
+  // No category selected means broad discovery. A category selected keeps the
+  // precise category query so a scan remains performant and accurate.
+  const blocks = categories.length > 0 ? categoryBlocks(area, categories) : broadBlocks(area);
+  return `[out:json][timeout:45];\n(\n${blocks.join("\n")}\n);\nout center tags;`;
 }
 
 export function buildOverpassQuery(area: BoundingBox, categories: CategoryKey[], _signalZeroOnly = false): string {
