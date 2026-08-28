@@ -214,9 +214,7 @@ export async function verifyLead(lead: Establishment): Promise<VerificationResul
       try {
         const handle = new URL(instagramUrl).pathname.split("/").filter(Boolean)[0] ?? "";
         contact.instagramHandle = handle ? `@${handle}` : contact.instagramHandle;
-      } catch {
-        // ignore malformed social URL after validation
-      }
+      } catch {}
       reasons.push("Instagram encontrado pela busca web com correspondência de identidade e contexto.");
       continue;
     }
@@ -279,9 +277,8 @@ function unverifiedResult(lead: Establishment): Establishment & { verification: 
 }
 
 export async function verifyLeads(leads: Establishment[]): Promise<(Establishment & { verification: LeadVerification })[]> {
-  // Não deixar uma cidade grande transformar um filtro em centenas de consultas sequenciais.
-  // O lote é limitado e as consultas são feitas em paralelo com um limite controlado.
-  const maxToVerify = 150;
+  // Limite baixo e concorrência controlada: filtros de presença não podem prender a UI por dezenas de segundos.
+  const maxToVerify = 40;
   const concurrency = 10;
   const candidates = leads.slice(0, maxToVerify);
   const output: (Establishment & { verification: LeadVerification })[] = [];
@@ -317,7 +314,6 @@ export async function verifyLeads(leads: Establishment[]): Promise<(Establishmen
     output.push(...verified);
   }
 
-  // Preserva os demais resultados, sem bloquear a pesquisa esperando por eles.
   output.push(...leads.slice(maxToVerify).map(unverifiedResult));
   return output;
 }
