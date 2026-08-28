@@ -13,6 +13,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "../lib/supabase";
+import { MobileActions } from "../components/sinal-zero/MobileActions";
 
 function NotFoundComponent() {
   return (
@@ -149,6 +150,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthGate>
         <Outlet />
+        <MobileActions />
       </AuthGate>
     </QueryClientProvider>
   );
