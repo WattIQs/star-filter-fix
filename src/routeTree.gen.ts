@@ -19,7 +19,7 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 
-const AuthRoute = AuthRouteImport.update({
+const AuthRouteBase = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => rootRouteImport,
@@ -28,8 +28,12 @@ const AuthRoute = AuthRouteImport.update({
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/callback',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AuthRouteBase,
 } as any)
+
+const AuthRoute = AuthRouteBase._addFileChildren({
+  AuthCallbackRoute,
+})
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -91,16 +95,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
 }
 
-const authRouteChildren = {
-  AuthCallbackRoute: AuthCallbackRoute,
-}
-
-const rootWithAuthChildren = rootRouteImport
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-
-AuthRoute._addFileChildren(authRouteChildren)
-
-export const routeTree = rootWithAuthChildren
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
