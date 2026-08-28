@@ -84,7 +84,9 @@ function AuthPage() {
             ? "Este e-mail já possui uma conta. Tente entrar."
             : lower.includes("email not confirmed")
               ? "Confirme seu e-mail antes de entrar."
-              : raw,
+              : lower.includes("rate limit")
+                ? "O envio de e-mail atingiu o limite temporário. Aguarde alguns minutos e tente novamente."
+                : raw,
       );
     } finally {
       setLoading(false);
