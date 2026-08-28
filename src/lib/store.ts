@@ -1,4 +1,3 @@
-import type { SavedLead } from "./types";
 import { getSavedLeads } from "./saved-leads";
 
 export { getSavedLeads, isLeadSaved, removeLead, saveLead } from "./saved-leads";
