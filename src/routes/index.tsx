@@ -127,9 +127,11 @@ function Index() {
     setError(null);
     try {
       const response = await verifyLeads({ data: { leads: missing } });
-      if (!response.external) throw new Error("A verificação Google não está configurada no servidor.");
       if (scanId !== undefined && scanId !== scanIdRef.current) return null;
       for (const lead of response.leads) verificationCacheRef.current.set(lead.id, lead);
+      if (!response.external) {
+        setError("Verificação externa indisponível: usando os dados do OpenStreetMap.");
+      }
       return source.map((lead) => verificationCacheRef.current.get(lead.id) ?? lead);
     } catch (err) {
       if (scanId === undefined || scanId === scanIdRef.current) setError(err instanceof Error ? err.message : "Não foi possível verificar a presença digital.");
