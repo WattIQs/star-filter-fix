@@ -40,11 +40,9 @@ export const Route = createFileRoute("/api/auth/send-verification")({
         const codeHash = await hashCode(code);
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-        const { error: saveError } = await supabase.from("email_verification_codes").upsert({
-          user_id: userData.user.id,
-          code_hash: codeHash,
-          expires_at: expiresAt,
-          attempts: 0,
+        const { error: saveError } = await supabase.rpc("issue_email_verification_code", {
+          p_code_hash: codeHash,
+          p_expires_at: expiresAt,
         });
         if (saveError) return json({ error: "Não foi possível preparar a confirmação." }, 500);
 
@@ -63,10 +61,7 @@ export const Route = createFileRoute("/api/auth/send-verification")({
           }),
         });
 
-        if (!brevoResponse.ok) {
-          await supabase.from("email_verification_codes").delete().eq("user_id", userData.user.id);
-          return json({ error: "O Brevo não conseguiu enviar o e-mail. Verifique o remetente configurado." }, 502);
-        }
+        if (!brevoResponse.ok) return json({ error: "O Brevo não conseguiu enviar o e-mail. Verifique o remetente configurado." }, 502);
 
         return json({ ok: true });
       },
