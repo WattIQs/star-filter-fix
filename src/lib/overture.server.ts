@@ -2,8 +2,9 @@ import type { BoundingBox } from "./types";
 import type { OverpassElement } from "./geo.functions";
 
 const DEFAULT_RELEASE = "2026-08-19.0";
-const MAX_RESULTS = 8000;
-const OVERTURE_TIMEOUT_MS = 20000;
+const MAX_RESULTS = 3000;
+const OVERTURE_TIMEOUT_MS = 12000;
+const MAX_OVERTURE_AREA_DEG2 = 0.5;
 
 type OvertureRow = {
   id?: string;
@@ -71,7 +72,13 @@ function categoryTags(row: OvertureRow): Record<string, string> {
   return tags;
 }
 
+function areaSizeDeg2(area: BoundingBox): number {
+  return Math.abs((area.north - area.south) * (area.east - area.west));
+}
+
 export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassElement[]> {
+  if (areaSizeDeg2(area) > MAX_OVERTURE_AREA_DEG2) return [];
+
   const { DuckDBInstance } = await import("@duckdb/node-api");
   const release = process.env.OVERTURE_RELEASE?.trim() || DEFAULT_RELEASE;
   const path = `s3://overturemaps-us-west-2/release/${release}/theme=places/type=place/*`;
@@ -159,6 +166,7 @@ export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassEl
 }
 
 export async function safeQueryOverturePlaces(area: BoundingBox): Promise<OverpassElement[]> {
+  if (areaSizeDeg2(area) > MAX_OVERTURE_AREA_DEG2) return [];
   try {
     return await Promise.race([
       queryOverturePlaces(area),
