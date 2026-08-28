@@ -8,6 +8,8 @@ export const OVERPASS_MIRRORS = [
   "https://overpass.openstreetmap.fr/api/interpreter",
 ];
 
+const OVERPASS_REQUEST_TIMEOUT_MS = 8000;
+
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit = {},
@@ -35,7 +37,7 @@ export async function queryOverpass(query: string): Promise<OverpassElement[] | 
           },
           body: `data=${encodeURIComponent(query)}`,
         },
-        13000
+        OVERPASS_REQUEST_TIMEOUT_MS
       );
       if (!response.ok) continue;
       const json = (await response.json()) as { elements?: OverpassElement[] };
