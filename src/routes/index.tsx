@@ -1,7 +1,7 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Map as MapIcon, Radar, Rows3 } from "lucide-react";
+import { Map as MapIcon, Radar, Rows3 } from "lucide-react";
 import { searchOverpassServer, verifyLeadsServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { processOverpassResults } from "@/lib/lead-qualification";
 import { getSavedLeads, isLeadSaved, removeLead, saveLead } from "@/lib/saved-leads";
