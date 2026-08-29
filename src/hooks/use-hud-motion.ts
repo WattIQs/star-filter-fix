@@ -129,10 +129,20 @@ export function useHudCursor() {
       };
       window.addEventListener("pointermove", move, { passive: true });
       window.addEventListener("pointerover", over, { passive: true });
-      cleanup = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerover", over); ring.remove(); dot.remove(); };
+      cleanup = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerover", over); gsap.killTweensOf([ring, dot]); ring.remove(); dot.remove(); };
     });
     return () => { active = false; cleanup?.(); };
   }, []);
+}
+
+function applyHudClasses(scope: HTMLElement) {
+  scope.querySelectorAll<HTMLElement>("article.premium-card:not(.hud-frame)").forEach((el) => el.classList.add("hud-frame", "hud-glass", "hud-surface-interactive", "hud-ripple"));
+  scope.querySelectorAll<HTMLElement>(".glass-panel:not(.hud-frame)").forEach((el) => el.classList.add("hud-frame", "hud-glass"));
+  scope.querySelectorAll<HTMLElement>("[aria-pressed=\"true\"], [data-state=\"on\"]").forEach((el) => el.classList.add("hud-glow-edge"));
+  scope.querySelectorAll<HTMLElement>("button,a,[role=button]").forEach((el) => el.classList.add("hud-control"));
+  scope.querySelector("header")?.classList.add("hud-header", "hud-scanlines", "hud-frame", "hud-glass");
+  scope.querySelectorAll<HTMLElement>("section").forEach((el) => { if (el.querySelector(".leaflet-container")) el.classList.add("hud-map-surface"); });
+  scope.querySelectorAll<HTMLElement>("h1,h2").forEach((el, index) => { if (index < 2) el.classList.add("hud-title"); });
 }
 
 /** Global visual runtime. Only adds visual classes and a desktop pointer parallax layer. */
@@ -142,19 +152,29 @@ export function useHudAutoMotion(routeKey = "") {
     const scope = document.querySelector<HTMLElement>(".route-content-enter");
     if (!scope) return;
 
-    scope.querySelectorAll<HTMLElement>("article.premium-card").forEach((el) => el.classList.add("hud-frame", "hud-glass", "hud-surface-interactive", "hud-ripple"));
-    scope.querySelectorAll<HTMLElement>(".glass-panel").forEach((el) => el.classList.add("hud-frame", "hud-glass"));
-    scope.querySelectorAll<HTMLElement>("[aria-pressed=\"true\"], [data-state=\"on\"]").forEach((el) => el.classList.add("hud-glow-edge"));
-    scope.querySelectorAll<HTMLElement>("button,a,[role=button]").forEach((el) => el.classList.add("hud-control"));
-    scope.querySelector("header")?.classList.add("hud-header", "hud-scanlines", "hud-frame", "hud-glass");
-    scope.querySelectorAll<HTMLElement>("section").forEach((el) => { if (el.querySelector(".leaflet-container")) el.classList.add("hud-map-surface"); });
-    scope.querySelectorAll<HTMLElement>("h1,h2").forEach((el, index) => { if (index < 2) el.classList.add("hud-title"); });
-
-    if (small() || window.matchMedia("(hover: none)").matches) return;
     let raf = 0;
+    const apply = () => {
+      applyHudClasses(scope);
+      raf = 0;
+    };
+
+    apply();
+
+    // Route content is hydrated asynchronously and lead cards are added after scans.
+    // Observe those mutations so HUD treatment is applied without requiring a route reload.
+    const observer = new MutationObserver(() => {
+      if (raf === 0) raf = requestAnimationFrame(apply);
+    });
+    observer.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-pressed", "data-state"] });
+
+    if (small() || window.matchMedia("(hover: none)").matches) {
+      return () => { observer.disconnect(); if (raf) cancelAnimationFrame(raf); };
+    }
+
+    let pointerRaf = 0;
     const move = (event: PointerEvent) => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
+      cancelAnimationFrame(pointerRaf);
+      pointerRaf = requestAnimationFrame(() => {
         const x = (event.clientX / window.innerWidth - 0.5) * 7;
         const y = (event.clientY / window.innerHeight - 0.5) * 7;
         scope.querySelectorAll<HTMLElement>(".hud-map-surface").forEach((map) => {
@@ -164,6 +184,11 @@ export function useHudAutoMotion(routeKey = "") {
       });
     };
     window.addEventListener("pointermove", move, { passive: true });
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("pointermove", move); };
+    return () => {
+      observer.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+      cancelAnimationFrame(pointerRaf);
+      window.removeEventListener("pointermove", move);
+    };
   }, [routeKey]);
 }
