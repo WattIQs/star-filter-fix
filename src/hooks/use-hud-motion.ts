@@ -55,9 +55,15 @@ export function useHudReveal(containerRef: RefObject<HTMLElement | null>, deps: 
       const targets = container.querySelectorAll<HTMLElement>(".hud-reveal");
       const ctx = gsap.context(() => {
         targets.forEach((target, index) => {
+          const scrollTrigger = {
+            trigger: target,
+            start: "top 94%",
+            once: true,
+            ...(container.scrollHeight > container.clientHeight ? { scroller: container } : {}),
+          };
           gsap.fromTo(target, { opacity: 0, y: 12, filter: "blur(2px)" }, {
             opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out", delay: Math.min(index, 7) * 0.055,
-            scrollTrigger: { trigger: target, scroller: container.scrollHeight > container.clientHeight ? container : undefined, start: "top 94%", once: true },
+            scrollTrigger,
           });
         });
       }, container);
@@ -128,13 +134,11 @@ export function useHudCursor() {
   }, []);
 }
 
-/** Applies the visual HUD layer to the existing UI without changing application behavior. */
 export function useHudAutoMotion(routeKey = "") {
   useEffect(() => {
     if (typeof document === "undefined" || reduced()) return;
     let cancelled = false;
     let cleanupGsap: (() => void) | undefined;
-
     const decorate = () => {
       const scope = document.querySelector<HTMLElement>(".route-content-enter");
       if (!scope) return;
@@ -148,12 +152,10 @@ export function useHudAutoMotion(routeKey = "") {
       const scan = Array.from(scope.querySelectorAll<HTMLButtonElement>("button")).find((button) => /varrer área|varrendo/i.test(button.getAttribute("aria-label") ?? button.textContent ?? ""));
       scan?.classList.add("hud-magnetic", "hud-ripple");
     };
-
     decorate();
     const observer = new MutationObserver(decorate);
     const root = document.querySelector(".route-content-enter") ?? document.body;
     observer.observe(root, { childList: true, subtree: true });
-
     void (async () => {
       const [{ gsap }, { ScrollTrigger }] = await Promise.all([import("gsap"), import("gsap/ScrollTrigger")]);
       if (cancelled) return;
@@ -162,16 +164,13 @@ export function useHudAutoMotion(routeKey = "") {
       if (!scope) return;
       const cards = Array.from(scope.querySelectorAll<HTMLElement>(".hud-reveal"));
       const ctx = gsap.context(() => {
-        cards.forEach((el, index) => {
-          gsap.fromTo(el, { opacity: 0, y: 10, filter: "blur(2px)" }, {
-            opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out", delay: Math.min(index, 7) * 0.055,
-            scrollTrigger: { trigger: el, start: "top 96%", once: true },
-          });
-        });
+        cards.forEach((el, index) => gsap.fromTo(el, { opacity: 0, y: 10, filter: "blur(2px)" }, {
+          opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out", delay: Math.min(index, 7) * 0.055,
+          scrollTrigger: { trigger: el, start: "top 96%", once: true },
+        }));
       }, scope);
       cleanupGsap = () => ctx.revert();
     })();
-
     return () => { cancelled = true; observer.disconnect(); cleanupGsap?.(); };
   }, [routeKey]);
 }
