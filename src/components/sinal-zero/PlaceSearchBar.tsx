@@ -1,5 +1,5 @@
-import { createElement, useEffect, useRef, useState } from "react";
-import { MapPin, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { LoaderCircle, MapPin, Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { searchPlacesServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { resolveMunicipalityServer, searchMunicipalitiesServer, type MunicipalitySuggestion } from "@/lib/municipality-search";
@@ -15,7 +15,6 @@ type SearchSuggestion =
   | { kind: "municipality"; value: MunicipalitySuggestion }
   | { kind: "place"; value: PlaceSuggestion };
 
-const LOTTIE_LOADER_URL = "https://lottie.host/3952c2bb-d2d3-4b39-8482-cd4f6ac898c4/xZZIDl8jKY.lottie";
 
 export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBarProps) {
   const searchMunicipalities = useServerFn(searchMunicipalitiesServer);
@@ -30,14 +29,6 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
   const requestIdRef = useRef(0);
   const pickedLabelRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (document.querySelector("script[data-sinal-zero-lottie]") instanceof HTMLScriptElement) return;
-    const script = document.createElement("script");
-    script.type = "module";
-    script.src = "https://unpkg.com/@lottiefiles/dotlottie-wc@latest/dist/dotlottie-wc.js";
-    script.dataset.sinalZeroLottie = "true";
-    document.head.appendChild(script);
-  }, []);
 
   useEffect(() => {
     if (pickedLabelRef.current !== null && value === pickedLabelRef.current) return;
@@ -142,13 +133,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
     <div ref={boxRef} className="relative min-w-0 flex-1">
       <span className="pointer-events-none absolute left-3 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center text-muted-foreground" aria-hidden="true">
         {showSpinner
-          ? createElement("dotlottie-wc", {
-              src: LOTTIE_LOADER_URL,
-              autoplay: true,
-              loop: true,
-              mode: "forward",
-              style: { width: "18px", height: "18px" },
-            } as Record<string, unknown>)
+          ? <LoaderCircle className="h-4 w-4 animate-spin text-primary" aria-label="Carregando" />
           : <Search className="h-3.5 w-3.5" />}
       </span>
       <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow,transform] duration-500 ease-out placeholder:text-muted-foreground/70 focus:-translate-y-px focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
