@@ -13,6 +13,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import "../hud.css";
 import "../premium-motion.css";
+import "../hud-upgrade.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "../lib/supabase";
 import { HudRuntime } from "../components/sinal-zero/HudRuntime";
