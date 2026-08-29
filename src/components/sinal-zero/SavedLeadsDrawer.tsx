@@ -11,7 +11,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import type { SavedLead } from "@/lib/types";
 import { SignalBadge } from "./SignalBadge";
-import { ExportCsvButton } from "./ExportCsvButton";
 
 interface SavedLeadsDrawerProps {
   leads: SavedLead[];
@@ -39,7 +38,6 @@ export function SavedLeadsDrawer({ leads, onRemove }: SavedLeadsDrawerProps) {
           </div>
         ) : (
           <>
-            <div className="py-2"><ExportCsvButton /></div>
             <ScrollArea className="flex-1 pr-2">
               <div className="space-y-3 pb-4">
                 {leads.map((lead, index) => (
