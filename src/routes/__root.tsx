@@ -11,6 +11,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import "../loading-state.css";
 import "../hud.css";
 import "../premium-motion.css";
 import "../hud-upgrade.css";
