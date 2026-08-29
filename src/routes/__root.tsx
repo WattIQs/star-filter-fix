@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "../lib/supabase";
 import { MobileActions } from "../components/sinal-zero/MobileActions";
+import { ProfileMenu } from "../components/sinal-zero/ProfileMenu";
 
 function NotFoundComponent() {
   return (
@@ -93,7 +94,7 @@ function AuthGate({ children }: { children: ReactNode }) {
   }, [navigate, isPublicRoute]);
 
   if (isPublicRoute || !checking) return <>{children}</>;
-  return <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Verificando sessão" /></main>;
+  return <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground"><div className="app-spinner h-9 w-9" role="status" aria-label="Verificando sessão" /></main>;
 }
 
 function RootComponent() {
@@ -104,6 +105,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthGate>
         <Outlet />
+        {!isPublicRoute && <ProfileMenu />}
         {!isPublicRoute && <MobileActions />}
       </AuthGate>
     </QueryClientProvider>
