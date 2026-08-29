@@ -1,13 +1,13 @@
 /* Sinal Zero — premium motion layer. Visual-only: map internals and app logic stay untouched. */
 
-/* Page entrance: ~0.5s, soft fade + slow rise. No element is hidden before the animation starts. */
-.route-content-enter { animation: sz-page-in 500ms cubic-bezier(.22,1,.36,1) both; will-change: opacity, transform, filter; }
-.route-content-enter > * { animation: sz-child-in 500ms cubic-bezier(.22,1,.36,1) both; }
-.route-content-enter > *:nth-child(2) { animation-delay: 70ms; }
-.route-content-enter > *:nth-child(3) { animation-delay: 140ms; }
-.route-content-enter > *:nth-child(4) { animation-delay: 210ms; }
+/* Page transition: deliberate, contained, and never hides individual controls. */
+.route-content-enter {
+  animation: sz-page-in 500ms cubic-bezier(.22,1,.36,1) both;
+  will-change: opacity, transform, filter;
+  overflow-x: clip;
+}
 
-/* Opt-in reveal utilities. */
+/* Optional reveals: components can opt in without affecting the whole page. */
 .sz-reveal { animation: sz-reveal 500ms cubic-bezier(.22,1,.36,1) both; }
 .sz-stagger > * { animation: sz-reveal 500ms cubic-bezier(.22,1,.36,1) both; }
 .sz-stagger > *:nth-child(1) { animation-delay: 40ms; }
@@ -18,39 +18,133 @@
 .sz-stagger > *:nth-child(6) { animation-delay: 340ms; }
 .sz-stagger > *:nth-child(n+7) { animation-delay: 400ms; }
 
-/* Premium interaction. Never changes layout and never hides controls. */
-.sz-interactive { position: relative; isolation: isolate; overflow: hidden; transition: transform 420ms cubic-bezier(.22,1,.36,1), box-shadow 500ms cubic-bezier(.22,1,.36,1), border-color 350ms ease, filter 350ms ease; }
-.sz-interactive::before { content: ""; position: absolute; inset: -100% 55%; z-index: -1; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .10) 50%, transparent 65%); transform: translateX(-130%) rotate(8deg); transition: transform 850ms cubic-bezier(.22,1,.36,1); }
-.sz-interactive:hover { transform: translateY(-2px) scale(1.012); box-shadow: 0 18px 42px -30px color-mix(in oklab, var(--color-primary) 70%, transparent), 0 0 24px -20px color-mix(in oklab, var(--color-primary) 60%, transparent); filter: brightness(1.035); }
-.sz-interactive:hover::before { transform: translateX(240%) rotate(8deg); }
-.sz-interactive:active { transform: scale(.988); transition-duration: 90ms; }
+/* Premium interactive surface: restrained depth + a single light sweep. */
+.sz-interactive {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    transform 360ms cubic-bezier(.22,1,.36,1),
+    box-shadow 420ms cubic-bezier(.22,1,.36,1),
+    border-color 280ms ease,
+    filter 280ms ease;
+}
+.sz-interactive::before {
+  content: "";
+  position: absolute;
+  inset: -80% 60%;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 34%, rgb(255 255 255 / .10) 50%, transparent 66%);
+  transform: translateX(-150%) rotate(8deg);
+  transition: transform 760ms cubic-bezier(.22,1,.36,1);
+}
+.sz-interactive:hover {
+  transform: translateY(-2px) scale(1.012);
+  box-shadow:
+    0 16px 36px -28px color-mix(in oklab, var(--color-primary) 70%, transparent),
+    0 0 26px -22px color-mix(in oklab, var(--color-primary) 55%, transparent);
+  filter: brightness(1.025);
+}
+.sz-interactive:hover::before { transform: translateX(250%) rotate(8deg); }
+.sz-interactive:active { transform: translateY(0) scale(.987); transition-duration: 100ms; }
 
-/* Global UI microinteraction: transform/shadow only, never opacity. */
+/* Global UI microinteraction: visual feedback only — never opacity. */
 .route-content-enter button:not(.leaflet-control-zoom a),
-.route-content-enter [role="button"]:not(.leaflet-control-zoom a) { transition: transform 320ms cubic-bezier(.22,1,.36,1), box-shadow 420ms cubic-bezier(.22,1,.36,1), border-color 300ms ease, background-color 300ms ease, filter 300ms ease; }
+.route-content-enter [role="button"]:not(.leaflet-control-zoom a) {
+  transition:
+    transform 240ms cubic-bezier(.22,1,.36,1),
+    box-shadow 300ms cubic-bezier(.22,1,.36,1),
+    border-color 240ms ease,
+    background-color 240ms ease,
+    filter 240ms ease;
+}
 .route-content-enter button:not(:disabled):hover:not(.leaflet-control-zoom a),
-.route-content-enter [role="button"]:hover:not(.leaflet-control-zoom a) { transform: translateY(-1px); box-shadow: 0 10px 26px -22px color-mix(in oklab, var(--color-primary) 55%, transparent); }
+.route-content-enter [role="button"]:hover:not(.leaflet-control-zoom a) {
+  transform: translateY(-1px) scale(1.008);
+  box-shadow: 0 10px 28px -24px color-mix(in oklab, var(--color-primary) 65%, transparent);
+  filter: brightness(1.025);
+}
 .route-content-enter button:not(:disabled):active:not(.leaflet-control-zoom a),
-.route-content-enter [role="button"]:active:not(.leaflet-control-zoom a) { transform: translateY(0) scale(.985); transition-duration: 80ms; }
+.route-content-enter [role="button"]:active:not(.leaflet-control-zoom a) {
+  transform: translateY(0) scale(.985);
+  transition-duration: 90ms;
+}
 
-/* Inputs: polished focus halo without moving surrounding layout. */
-.sz-focus { transition: border-color 300ms ease, box-shadow 450ms ease, background-color 300ms ease, transform 350ms cubic-bezier(.22,1,.36,1); }
-.sz-focus:focus-visible { outline: none; border-color: color-mix(in oklab, var(--color-primary) 70%, var(--color-border)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 12%, transparent), 0 12px 34px -26px color-mix(in oklab, var(--color-primary) 65%, transparent); transform: translateY(-1px); }
+/* Inputs: focused depth instead of a harsh jump. */
+.sz-focus {
+  transition:
+    border-color 240ms ease,
+    box-shadow 360ms ease,
+    background-color 240ms ease,
+    transform 260ms cubic-bezier(.22,1,.36,1);
+}
+.sz-focus:focus-visible {
+  outline: none;
+  border-color: color-mix(in oklab, var(--color-primary) 70%, var(--color-border));
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--color-primary) 11%, transparent),
+    0 12px 32px -26px color-mix(in oklab, var(--color-primary) 65%, transparent);
+  transform: translateY(-1px);
+}
 
-/* Radix menus/popovers: soft scale + fade, no abrupt jump. */
-[data-radix-popper-content-wrapper] > [data-state="open"] { animation: sz-popover-in 260ms cubic-bezier(.22,1,.36,1) both; transform-origin: var(--radix-popover-content-transform-origin, center top); }
-[data-radix-popper-content-wrapper] > [data-state="closed"] { animation: sz-popover-out 150ms ease both; transform-origin: var(--radix-popover-content-transform-origin, center top); }
+/* Radix menus/popovers: spatial transition, not a sudden appearance. */
+[data-radix-popper-content-wrapper] > [data-state="open"] {
+  animation: sz-popover-in 260ms cubic-bezier(.22,1,.36,1) both;
+  transform-origin: var(--radix-popover-content-transform-origin, center top);
+}
+[data-radix-popper-content-wrapper] > [data-state="closed"] {
+  animation: sz-popover-out 150ms ease both;
+  transform-origin: var(--radix-popover-content-transform-origin, center top);
+}
 
-/* Lottie host: keep it visually crisp and unobtrusive. */
-.sz-lottie { display: block; flex: none; filter: drop-shadow(0 0 8px color-mix(in oklab, var(--color-primary) 28%, transparent)); }
+/* Lottie host: crisp, small, and visually tied to the primary accent. */
+.sz-lottie {
+  display: block;
+  flex: none;
+  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--color-primary) 28%, transparent));
+}
 
-@keyframes sz-page-in { 0% { opacity: 0; transform: translate3d(0, 14px, 0); filter: blur(3px); } 55% { opacity: .78; filter: blur(.8px); } 100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); } }
-@keyframes sz-child-in { 0% { opacity: 0; transform: translate3d(0, 12px, 0); filter: blur(2.5px); } 62% { opacity: .82; filter: blur(.6px); } 100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); } }
-@keyframes sz-reveal { 0% { opacity: 0; transform: translate3d(0, 12px, 0); filter: blur(2.5px); } 62% { opacity: .82; filter: blur(.6px); } 100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); } }
-@keyframes sz-popover-in { from { opacity: 0; transform: translateY(-5px) scale(.975); filter: blur(2px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-@keyframes sz-popover-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-3px) scale(.985); } }
+/* Lightweight skeleton shimmer for future/opt-in loading surfaces. */
+.sz-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-muted) 78%, transparent);
+}
+.sz-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / .09) 50%, transparent 75%);
+  animation: sz-shimmer 1.25s cubic-bezier(.4,0,.2,1) infinite;
+}
+
+/* Soft ambient pulse for status indicators — deliberately tiny. */
+.sz-status-pulse { animation: sz-status-pulse 2.2s ease-in-out infinite; }
+
+@keyframes sz-page-in {
+  0% { opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(2px); }
+  55% { opacity: .78; filter: blur(.55px); }
+  100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); }
+}
+@keyframes sz-reveal {
+  0% { opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(2px); }
+  62% { opacity: .82; filter: blur(.45px); }
+  100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); }
+}
+@keyframes sz-popover-in {
+  from { opacity: 0; transform: translateY(-5px) scale(.975); filter: blur(1.5px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes sz-popover-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-3px) scale(.985); }
+}
+@keyframes sz-shimmer { to { transform: translateX(100%); } }
+@keyframes sz-status-pulse { 0%,100% { opacity: .72; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .route-content-enter, .route-content-enter > *, .sz-reveal, .sz-stagger > * { animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important; }
+  .route-content-enter, .sz-reveal, .sz-stagger > *, .sz-skeleton::after, .sz-status-pulse { animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important; }
   .sz-interactive, .route-content-enter button, .route-content-enter [role="button"], .sz-focus { transition: box-shadow 180ms ease, filter 180ms ease, border-color 180ms ease !important; transform: none !important; }
 }
