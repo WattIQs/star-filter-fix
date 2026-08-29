@@ -27,6 +27,8 @@
   .text-gradient-signal { background: linear-gradient(135deg, var(--color-signal-zero), var(--color-signal-zero-glow)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .glow-zero { box-shadow: 0 0 22px -5px color-mix(in oklab, var(--color-signal-zero) 48%, transparent); } .glow-zero-text { text-shadow: 0 0 16px color-mix(in oklab, var(--color-signal-zero) 55%, transparent); } .border-glow { border-color: color-mix(in oklab, var(--color-signal-zero) 40%, var(--color-border)); } .glass-panel { background: color-mix(in oklab, var(--color-card) 88%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
   .radar-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--color-signal-zero) 35%, transparent); animation: radar-pulse 2.5s ease-out infinite; } .radar-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--color-signal-zero) 45%, transparent) 60deg, transparent 65deg); animation: radar-sweep 2s linear infinite; }
+  .app-spinner { display: inline-block; border-radius: 9999px; border: 2px solid color-mix(in oklab, var(--color-primary) 18%, transparent); border-top-color: var(--color-primary); border-right-color: color-mix(in oklab, var(--color-primary) 62%, transparent); animation: app-spinner-rotate .75s linear infinite; transform: translateZ(0); will-change: transform; }
+  .profile-menu-enter { animation: profile-menu-enter .24s cubic-bezier(.22,1,.36,1) both; }
 }
 
 @keyframes radar-pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
@@ -39,6 +41,8 @@
 @keyframes auth-orbit { from { transform: rotate(0deg) translateX(10px) rotate(0deg); opacity: .35; } to { transform: rotate(360deg) translateX(10px) rotate(-360deg); opacity: .7; } }
 @keyframes auth-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @keyframes auth-success { from { opacity: 0; transform: scale(.75); } 70% { transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
+@keyframes app-spinner-rotate { to { transform: rotate(360deg) translateZ(0); } }
+@keyframes profile-menu-enter { from { opacity: 0; transform: translateY(-6px) scale(.97); filter: blur(4px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
 .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
 .auth-card-enter { animation: auth-card-enter .65s cubic-bezier(.22,1,.36,1) both; }
 .auth-reveal { animation: auth-reveal .55s cubic-bezier(.22,1,.36,1) both; }
