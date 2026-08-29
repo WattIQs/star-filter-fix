@@ -45,31 +45,52 @@ function firstUrl(value: unknown): string {
   return clean(value);
 }
 
-function categoryTags(row: OvertureRow): Record<string, string> {
-  const values = [clean(row.basic_category), clean(row.taxonomy_primary), ...(Array.isArray(row.taxonomy_hierarchy) ? row.taxonomy_hierarchy.map(clean) : [])]
-    .filter(Boolean)
-    .map((value) => value.toLowerCase());
-  const tags: Record<string, string> = {};
-  const has = (needle: string) => values.some((value) => value === needle || value.includes(needle));
+/**
+ * Overture taxonomy is free-form. Matching by substring is dangerous:
+ * "barbearia" contains "bar" and was therefore previously classified as a bar.
+ * Match taxonomy tokens instead, while still accepting compound values such as
+ * "wine_bar" and "hair_salon".
+ */
+function taxonomyTokens(values: string[]): Set<string> {
+  const tokens = new Set<string>();
+  for (const value of values) {
+    const normalized = value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    if (!normalized) continue;
+    tokens.add(normalized);
+    for (const token of normalized.split(" ")) if (token) tokens.add(token);
+  }
+  return tokens;
+}
 
-  if (has("fast_food") || has("fast_food_restaurant") || has("burger") || has("hamburger")) tags.amenity = "fast_food";
-  else if (has("restaurant") || has("dining") || has("eatery")) tags.amenity = "restaurant";
-  else if (has("coffee") || has("cafe") || has("cafeteria")) tags.amenity = "cafe";
-  else if (has("pub")) tags.amenity = "pub";
-  else if (has("bar")) tags.amenity = "bar";
-  else if (has("pharmacy") || has("drugstore")) tags.amenity = "pharmacy";
-  else if (has("bakery") || has("pastry")) tags.shop = "bakery";
-  else if (has("barber")) tags.shop = "barber";
-  else if (has("hair_salon") || has("hairdresser")) tags.shop = "hairdresser";
-  else if (has("beauty_salon") || has("beauty")) tags.shop = "beauty";
-  else if (has("cosmetics") || has("perfumery")) tags.shop = "cosmetics";
-  else if (has("pet_store") || has("pet")) tags.shop = "pet";
-  else if (has("supermarket")) tags.shop = "supermarket";
-  else if (has("convenience") || has("grocery")) tags.shop = "convenience";
-  else if (has("clothing") || has("clothes") || has("shoe_store")) tags.shop = "clothes";
-  else if (has("hardware") || has("home_improvement")) tags.shop = "hardware";
-  else if (has("fitness") || has("gym")) tags.leisure = "fitness_centre";
-  return tags;
+function categoryTags(row: OvertureRow): Record<string, string> {
+  const values = [clean(row.basic_category), clean(row.taxonomy_primary), ...(Array.isArray(row.taxonomy_hierarchy) ? row.taxonomy_hierarchy.map(clean) : [])].filter(Boolean);
+  const tokens = taxonomyTokens(values);
+  const has = (...needles: string[]) => needles.some((needle) => tokens.has(needle));
+
+  // More specific categories must win before generic ones.
+  if (has("barber", "barbershop", "barbers", "barbearia")) return { shop: "barber" };
+  if (has("hair_salon", "hairdresser", "hairdressers", "salon", "salao")) return { shop: "hairdresser" };
+  if (has("fast_food", "fast_food_restaurant", "burger", "hamburger")) return { amenity: "fast_food" };
+  if (has("restaurant", "restaurants", "dining", "eatery")) return { amenity: "restaurant" };
+  if (has("coffee", "cafe", "cafeteria")) return { amenity: "cafe" };
+  if (has("pub", "pubs")) return { amenity: "pub" };
+  if (has("bar", "bars", "wine_bar", "cocktail_bar")) return { amenity: "bar" };
+  if (has("pharmacy", "drugstore")) return { amenity: "pharmacy" };
+  if (has("bakery", "pastry")) return { shop: "bakery" };
+  if (has("beauty_salon", "beauty")) return { shop: "beauty" };
+  if (has("cosmetics", "perfumery")) return { shop: "cosmetics" };
+  if (has("pet_store", "pet")) return { shop: "pet" };
+  if (has("supermarket")) return { shop: "supermarket" };
+  if (has("convenience", "grocery")) return { shop: "convenience" };
+  if (has("clothing", "clothes", "shoe_store")) return { shop: "clothes" };
+  if (has("hardware", "home_improvement")) return { shop: "hardware" };
+  if (has("fitness", "gym")) return { leisure: "fitness_centre" };
+  return {};
 }
 
 function normalizeArea(area: BoundingBox): BoundingBox | null {
@@ -98,10 +119,7 @@ export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassEl
   const west = bounds.west;
   const east = bounds.east;
 
-  const instance = await DuckDBInstance.create(":memory:", {
-    threads: "2",
-    max_memory: "512MB",
-  });
+  const instance = await DuckDBInstance.create(":memory:", { threads: "2", max_memory: "512MB" });
   const connection = await instance.connect();
 
   try {
@@ -144,10 +162,7 @@ export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassEl
       .filter((row) => clean(row.name) && Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude)))
       .map((row) => {
         const idText = clean(row.id) || `${row.name}:${row.latitude}:${row.longitude}`;
-        const tags: Record<string, string> = {
-          name: clean(row.name),
-          ...categoryTags(row),
-        };
+        const tags: Record<string, string> = { name: clean(row.name), ...categoryTags(row) };
         const website = firstUrl(row.website);
         const social = firstUrl(row.social);
         const email = firstUrl(row.email);
@@ -163,13 +178,7 @@ export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassEl
         if (clean(row.region)) tags["addr:state"] = clean(row.region);
         if (clean(row.postcode)) tags["addr:postcode"] = clean(row.postcode);
         if (clean(row.brand)) tags.brand = clean(row.brand);
-        return {
-          type: "overture",
-          id: hashId(idText),
-          lat: Number(row.latitude),
-          lon: Number(row.longitude),
-          tags,
-        } satisfies OverpassElement;
+        return { type: "overture", id: hashId(idText), lat: Number(row.latitude), lon: Number(row.longitude), tags } satisfies OverpassElement;
       });
   } finally {
     connection.disconnectSync();
