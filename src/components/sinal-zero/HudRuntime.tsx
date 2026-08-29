@@ -1,9 +1,9 @@
-import { useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useHudAutoMotion, useHudCursor } from "@/hooks/use-hud-motion";
 
 const LOADING_STYLE_ID = "sinal-zero-loading-fix";
-function LoadingMotionStyle() {
+
+/** Lightweight visual runtime. Avoids global observers, pointer loops and cursor effects. */
+export function HudRuntime() {
   useEffect(() => {
     if (document.getElementById(LOADING_STYLE_ID)) return;
     const style = document.createElement("style");
@@ -14,4 +14,3 @@ function LoadingMotionStyle() {
   }, []);
   return null;
 }
-export function HudRuntime() { const location = useLocation(); useHudCursor(); useHudAutoMotion(location.pathname); return <LoadingMotionStyle />; }
