@@ -125,8 +125,8 @@ export function ProfileMenu() {
 
   return (
     <>
-      <style>{`@media (min-width: 1024px) { header.z-\\[3000px\\] { padding-right: 4.75rem !important; } header.z-\\[3000px\\] > div:nth-child(2) { flex: 0 1 min(44vw, 560px) !important; max-width: min(44vw, 560px) !important; } }`}</style>
-      <div ref={panelRef} data-profile-menu className="fixed right-2.5 top-2.5 z-[9999] lg:right-3 lg:top-3">
+      <style>{`@media (min-width: 1024px) { header.z-\\[3000px\\] { padding-right: 4.25rem !important; } header.z-\\[3000px\\] > div:nth-child(2) { flex: 0 1 clamp(280px, 30vw, 430px) !important; width: clamp(280px, 30vw, 430px) !important; max-width: clamp(280px, 30vw, 430px) !important; } }`}</style>
+      <div ref={panelRef} data-profile-menu className="fixed right-3 top-2 z-[9999] lg:right-3 lg:top-2">
         <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Abrir perfil" data-profile-trigger className="group relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-lg backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-105 hover:border-primary/50 hover:shadow-primary/15">
           {avatar ? <img src={avatar} alt="Foto de perfil" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" onError={() => setAvatar(null)} /> : <span className="text-xs font-bold text-primary">{initials}</span>}
           <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-primary/0 transition-all duration-300 group-hover:ring-primary/30" />
