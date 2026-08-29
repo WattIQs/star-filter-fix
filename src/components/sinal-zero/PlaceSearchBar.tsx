@@ -128,9 +128,9 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
   return (
     <div ref={boxRef} className="relative min-w-0 flex-1">
       <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground">
-        {scanning || loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+        {scanning || loading ? <span className="app-spinner h-3.5 w-3.5" aria-hidden="true" /> : <Search className="h-3.5 w-3.5" />}
       </span>
-      <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-muted-foreground/70 focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
+      <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow,transform] duration-200 placeholder:text-muted-foreground/70 focus:-translate-y-px focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
       {open && value !== pickedLabelRef.current && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 top-11 z-[900] origin-top overflow-hidden rounded-2xl border border-border bg-popover/98 shadow-2xl backdrop-blur-md animate-in fade-in-0 zoom-in-95 duration-150">
           <div className="flex items-center justify-between border-b border-border/60 px-3 py-2 text-[10px] font-medium text-muted-foreground">
