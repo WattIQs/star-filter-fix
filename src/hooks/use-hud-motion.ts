@@ -64,7 +64,7 @@ export function useHudReveal(containerRef: RefObject<HTMLElement | null>, deps: 
       cleanup = () => ctx.revert();
     })();
     return () => { cancelled = true; cleanup?.(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 }
 
@@ -85,6 +85,7 @@ export function useSmoothScroll(containerRef: RefObject<HTMLElement | null>) {
     })();
     return () => { cancelled = true; cleanup?.(); };
   }, [containerRef]);
+  return null;
 }
 
 export function usePointerParallax<T extends HTMLElement>(depth = 10) {
@@ -151,26 +152,16 @@ export function useHudAutoMotion(routeKey = "") {
     if (typeof document === "undefined" || reduced()) return;
     const scope = document.querySelector<HTMLElement>(".route-content-enter");
     if (!scope) return;
-
     let raf = 0;
-    const apply = () => {
-      applyHudClasses(scope);
-      raf = 0;
-    };
-
+    const apply = () => { applyHudClasses(scope); raf = 0; };
     apply();
-
-    // Route content is hydrated asynchronously and lead cards are added after scans.
-    // Observe those mutations so HUD treatment is applied without requiring a route reload.
     const observer = new MutationObserver(() => {
       if (raf === 0) raf = requestAnimationFrame(apply);
     });
     observer.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-pressed", "data-state"] });
-
     if (small() || window.matchMedia("(hover: none)").matches) {
       return () => { observer.disconnect(); if (raf) cancelAnimationFrame(raf); };
     }
-
     let pointerRaf = 0;
     const move = (event: PointerEvent) => {
       cancelAnimationFrame(pointerRaf);
@@ -184,11 +175,6 @@ export function useHudAutoMotion(routeKey = "") {
       });
     };
     window.addEventListener("pointermove", move, { passive: true });
-    return () => {
-      observer.disconnect();
-      if (raf) cancelAnimationFrame(raf);
-      cancelAnimationFrame(pointerRaf);
-      window.removeEventListener("pointermove", move);
-    };
+    return () => { observer.disconnect(); if (raf) cancelAnimationFrame(raf); cancelAnimationFrame(pointerRaf); window.removeEventListener("pointermove", move); };
   }, [routeKey]);
 }
