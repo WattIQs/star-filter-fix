@@ -29,11 +29,42 @@ async function queryPhoton(q: string): Promise<NominatimResult[]> { const u = ne
 function isExactOrPrefix(q: string, r: NominatimResult) { const normalized = normalizeText(q), name = normalizeText(r.name), city = placeName(r); return name === normalized || city === normalized || name.startsWith(normalized) || city.startsWith(normalized); }
 async function recoverByPrefix(q: string): Promise<NominatimResult[]> { const normalized = normalizeText(q).replace(/\s+/g, ""); if (normalized.length < 4) return []; const prefixes = Array.from(new Set([normalized.slice(0, normalized.length - 1), normalized.slice(0, normalized.length - 2), normalized.slice(0, Math.max(3, normalized.length - 3))])).filter((value) => value.length >= 3 && value.length < normalized.length); const batches = await Promise.all(prefixes.map(async (prefix) => { const [nominatim, photon] = await Promise.all([queryPlaces(prefix), queryPhoton(prefix)]); return [...nominatim, ...photon]; })); return batches.flat(); }
 async function findPlaceResults(q: string): Promise<NominatimResult[]> { const normalized = normalizeText(q); const direct = await queryPlaces(q); const exactOrPrefix = direct.filter((r) => isExactOrPrefix(q, r)); if (exactOrPrefix.length > 0) return rankPlaceResults(q, exactOrPrefix); const fuzzyDirect = rankFuzzyPlaceResults(normalized, direct); if (fuzzyDirect.length > 0) return fuzzyDirect; const photon = await queryPhoton(q); const photonExactOrPrefix = photon.filter((r) => isExactOrPrefix(q, r)); if (photonExactOrPrefix.length > 0) return rankPlaceResults(q, photonExactOrPrefix); const fuzzyPhoton = rankFuzzyPlaceResults(normalized, photon); if (fuzzyPhoton.length > 0) return fuzzyPhoton; const recovered = await recoverByPrefix(q); return rankFuzzyPlaceResults(normalized, recovered); }
+function normalizeScanArea(value: unknown): BoundingBox {
+  if (!value || typeof value !== "object") throw new Error("Área de busca inválida.");
+  const area = value as Partial<BoundingBox>;
+  const south = Number(area.south);
+  const north = Number(area.north);
+  const west = Number(area.west);
+  const east = Number(area.east);
+  if (![south, north, west, east].every(Number.isFinite)) throw new Error("Área de busca inválida.");
+  if (south < -90 || north > 90 || west < -180 || east > 180 || south >= north || west >= east) throw new Error("Área de busca inválida.");
+  // Large areas overload the public providers and cannot be rendered usefully in one scan.
+  if ((north - south) * (east - west) > 1) throw new Error("Escolha uma área menor para a busca.");
+  return { south, north, west, east };
+}
+
+function normalizeCategories(value: unknown): CategoryKey[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((category): category is CategoryKey => typeof category === "string" && category in CATEGORIES))].slice(0, 12);
+}
+
 function merge(responses: Array<OverpassElement[] | null>) { const m = new Map<string, OverpassElement>(); for (const rs of responses) for (const e of rs ?? []) { const k = `${e.type}-${e.id}`; if (!m.has(k)) m.set(k, e); } return [...m.values()]; }
 function sameNamedLocation(a: OverpassElement, b: OverpassElement): boolean { const at = a.tags?.name ?? a.tags?.official_name; const bt = b.tags?.name ?? b.tags?.official_name; if (!at || !bt || normalizeText(at) !== normalizeText(bt)) return false; const alat = a.center?.lat ?? a.lat, alon = a.center?.lon ?? a.lon, blat = b.center?.lat ?? b.lat, blon = b.center?.lon ?? b.lon; if (![alat, alon, blat, blon].every((v) => Number.isFinite(v))) return false; const dLat = (Number(alat) - Number(blat)) * 111000; const dLon = (Number(alon) - Number(blon)) * 111000 * Math.cos((Number(alat) * Math.PI) / 180); return Math.hypot(dLat, dLon) <= 40; }
 function dedupeNamedPlaces(elements: OverpassElement[]): OverpassElement[] { const kept: OverpassElement[] = []; for (const element of elements) { if (kept.some((existing) => existing.type !== element.type && sameNamedLocation(existing, element))) continue; kept.push(element); } return kept; }
 async function queryArea(a: BoundingBox, c: CategoryKey[]) { const rs = await Promise.all(splitArea(a).map((t) => queryOverpass(buildOverpassQuery(t, c, false)))); if (rs.every((x) => x === null)) return null; return merge(rs); }
 function splitArea(a: BoundingBox) { const s = Math.min(a.south, a.north), n = Math.max(a.south, a.north), w = Math.min(a.west, a.east), e = Math.max(a.west, a.east), dh = (n - s) / 2, dw = (e - w) / 2; return [0, 1, 2, 3].map((i) => { const row = Math.floor(i / 2), col = i % 2; return { south: s + row * dh, north: row === 1 ? n : s + (row + 1) * dh, west: w + col * dw, east: col === 1 ? e : w + (col + 1) * dw }; }); }
-export const searchPlacesServer = createServerFn({ method: "POST" }).validator((data: { q: string }) => data).handler(async ({ data }): Promise<PlaceSuggestion[]> => { const q = data.q.trim().replace(/\s+/g, " "); if (q.length < 2) return []; const ranked = await findPlaceResults(q); return ranked.map(toPlaceSuggestion); });
-export const searchOverpassServer = createServerFn({ method: "POST" }).validator((data: { area: BoundingBox; categories: CategoryKey[] }) => data).handler(async ({ data }) => { const [osmResult, overtureResult] = await Promise.all([queryArea(data.area, data.categories), safeQueryOverturePlaces(data.area)]); const combined = dedupeNamedPlaces([...osmResult ?? [], ...overtureResult]); if (combined.length === 0 && osmResult === null && overtureResult.length === 0) throw new Error("As fontes de estabelecimentos estão indisponíveis no momento. Tente novamente em alguns segundos."); return { elements: combined }; });
-export const verifyLeadsServer = createServerFn({ method: "POST" }).validator((data: { leads: Establishment[] }) => data).handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean }> => { if (!externalVerificationConfigured()) return { leads: data.leads.map((lead) => ({ ...lead, verification: { status: "unverified", score: 0, reasons: ["Verificação externa não configurada; usados os dados do OpenStreetMap."], checked: false, foundDigitalPresence: Boolean(lead.signals.website || lead.signals.instagram || lead.contact.whatsappValid || lead.contact.instagramUrl), foundWebsite: Boolean(lead.signals.website || lead.contact.websiteUrl), contactConfidence: "low" as const } })), external: false }; return { leads: await verifyLeads(data.leads), external: true }; });
+export const searchPlacesServer = createServerFn({ method: "POST" }).validator((data: { q?: unknown }) => data).handler(async ({ data }): Promise<PlaceSuggestion[]> => {
+  const q = typeof data?.q === "string" ? data.q.trim().replace(/\s+/g, " ").slice(0, 120) : "";
+  if (q.length < 2) return [];
+  const ranked = await findPlaceResults(q);
+  return ranked.map(toPlaceSuggestion);
+});
+export const searchOverpassServer = createServerFn({ method: "POST" }).validator((data: { area?: unknown; categories?: unknown }) => data).handler(async ({ data }) => {
+  const area = normalizeScanArea(data?.area);
+  const categories = normalizeCategories(data?.categories);
+  const [osmResult, overtureResult] = await Promise.all([queryArea(area, categories), safeQueryOverturePlaces(area)]);
+  const combined = dedupeNamedPlaces([...(osmResult ?? []), ...overtureResult]);
+  if (combined.length === 0 && osmResult === null && overtureResult.length === 0) throw new Error("As fontes de estabelecimentos estão indisponíveis no momento. Tente novamente em alguns segundos.");
+  return { elements: combined };
+});
+export const verifyLeadsServer = createServerFn({ method: "POST" }).validator((data: { leads?: unknown }) => data).handler(async ({ data }): Promise<{ leads: (Establishment & { verification: LeadVerification })[]; external: boolean }> => { const leads = Array.isArray(data?.leads) ? data.leads.slice(0, 40) as Establishment[] : []; if (!externalVerificationConfigured()) return { leads: leads.map((lead) => ({ ...lead, verification: { status: "unverified", score: 0, reasons: ["Verificação externa não configurada; usados os dados do OpenStreetMap."], checked: false, foundDigitalPresence: Boolean(lead.signals.website || lead.signals.instagram || lead.contact.whatsappValid || lead.contact.instagramUrl), foundWebsite: Boolean(lead.signals.website || lead.contact.websiteUrl), contactConfidence: "low" as const } })), external: false }; return { leads: await verifyLeads(leads), external: true }; });
