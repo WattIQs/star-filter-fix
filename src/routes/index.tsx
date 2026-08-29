@@ -106,12 +106,9 @@ function Index() {
   const scanIdRef = useRef(0);
   const verificationCacheRef = useRef(new globalThis.Map<string, Establishment>());
 
-  useEffect(() => {
-    setSavedLeads(getSavedLeads());
-  }, []);
+  useEffect(() => { setSavedLeads(getSavedLeads()); }, []);
 
   const filterByCategory = (leads: Establishment[], selected = categories) => leads.filter((lead) => categoryMatches(lead, selected));
-
   const applyCurrentFilters = (source: Establishment[], selectedCategories = categories, selectedSignals = signalFilters, selectedContacts = contactFilters, noWebsite = noWebsiteOnly) => {
     const next = applyPresenceFilters(filterByCategory(source, selectedCategories), selectedSignals, selectedContacts, noWebsite);
     setResults(next);
@@ -121,9 +118,7 @@ function Index() {
   const enrichPresence = async (source: Establishment[], scanId?: number): Promise<Establishment[] | null> => {
     const missing = source.filter((lead) => !verificationCacheRef.current.has(lead.id));
     if (missing.length === 0) return source.map((lead) => verificationCacheRef.current.get(lead.id) ?? lead);
-
-    setVerifyingPresence(true);
-    setError(null);
+    setVerifyingPresence(true); setError(null);
     try {
       const response = await verifyLeads({ data: { leads: missing } });
       if (scanId !== undefined && scanId !== scanIdRef.current) return null;
@@ -133,36 +128,20 @@ function Index() {
     } catch (err) {
       if (scanId === undefined || scanId === scanIdRef.current) setError(err instanceof Error ? err.message : "Não foi possível verificar a presença digital.");
       return null;
-    } finally {
-      if (scanId === undefined || scanId === scanIdRef.current) setVerifyingPresence(false);
-    }
+    } finally { if (scanId === undefined || scanId === scanIdRef.current) setVerifyingPresence(false); }
   };
 
   const refreshPresenceFilters = async (source: Establishment[], selectedSignals = signalFilters, selectedContacts = contactFilters, noWebsite = noWebsiteOnly) => {
     const needsVerification = selectedSignals.length > 0 || selectedContacts.length > 0 || noWebsite;
-    if (!needsVerification) {
-      applyCurrentFilters(source, categories, selectedSignals, selectedContacts, noWebsite);
-      return;
-    }
+    if (!needsVerification) { applyCurrentFilters(source, categories, selectedSignals, selectedContacts, noWebsite); return; }
     setResults([]);
     const enriched = await enrichPresence(source);
-    if (enriched) {
-      setAllResults(enriched);
-      applyCurrentFilters(enriched, categories, selectedSignals, selectedContacts, noWebsite);
-    }
+    if (enriched) { setAllResults(enriched); applyCurrentFilters(enriched, categories, selectedSignals, selectedContacts, noWebsite); }
   };
 
   const runScan = async (target: PlaceSuggestion) => {
     const scanId = ++scanIdRef.current;
-    verificationCacheRef.current.clear();
-    setError(null);
-    setScanning(true);
-    setVerifyingPresence(false);
-    setResults([]);
-    setAllResults([]);
-    setSelectedId(null);
-    setCenter({ lat: target.lat, lon: target.lon });
-    setMobileView("leads");
+    verificationCacheRef.current.clear(); setError(null); setScanning(true); setVerifyingPresence(false); setResults([]); setAllResults([]); setSelectedId(null); setCenter({ lat: target.lat, lon: target.lon }); setMobileView("leads");
     try {
       const data = await searchPlaces({ data: { area: target.boundingBox ?? { south: target.lat - 0.025, north: target.lat + 0.025, west: target.lon - 0.03, east: target.lon + 0.03 }, categories } });
       if (scanId !== scanIdRef.current) return;
@@ -171,67 +150,27 @@ function Index() {
         setResults([]);
         const enriched = await enrichPresence(processed, scanId);
         if (scanId !== scanIdRef.current) return;
-        if (enriched) {
-          setAllResults(enriched);
-          applyCurrentFilters(enriched, categories, signalFilters, contactFilters, noWebsiteOnly);
-        }
-      } else {
-        setAllResults(processed);
-        setResults(processed);
-      }
+        if (enriched) { setAllResults(enriched); applyCurrentFilters(enriched, categories, signalFilters, contactFilters, noWebsiteOnly); }
+      } else { setAllResults(processed); setResults(processed); }
       if (processed.length === 0) setError("Nenhum estabelecimento foi encontrado nessa área para as categorias selecionadas.");
     } catch (err) {
       if (scanId !== scanIdRef.current) return;
       setError(err instanceof Error ? err.message : "Erro ao pesquisar a área.");
-    } finally {
-      if (scanId === scanIdRef.current) setScanning(false);
-    }
+    } finally { if (scanId === scanIdRef.current) setScanning(false); }
   };
 
-  const handlePickPlace = (target: PlaceSuggestion) => {
-    setPlace(target);
-    setCenter({ lat: target.lat, lon: target.lon });
-    setError(null);
-  };
-
-  const handleScanCurrentPlace = () => {
-    if (place) void runScan(place);
-    else setError("Pesquise primeiro uma cidade, bairro ou local.");
-  };
-
-  const handleCategoriesChange = (next: CategoryKey[]) => {
-    setCategories(next);
-    setError(null);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, contactFilters, noWebsiteOnly);
-  };
-
-  const handleToggleSave = (lead: Establishment) => {
-    if (isLeadSaved(lead.id)) removeLead(lead.id); else saveLead(lead);
-    setSavedLeads(getSavedLeads());
-  };
-
-  const handleSignalFiltersChange = (next: SignalFilter[]) => {
-    setSignalFilters(next);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, next, contactFilters, noWebsiteOnly);
-  };
-
-  const handleContactFiltersChange = (next: ContactFilter[]) => {
-    setContactFilters(next);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, next, noWebsiteOnly);
-  };
-
-  const handleNoWebsiteChange = (enabled: boolean) => {
-    setNoWebsiteOnly(enabled);
-    if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, contactFilters, enabled);
-  };
+  const handlePickPlace = (target: PlaceSuggestion) => { setPlace(target); setCenter({ lat: target.lat, lon: target.lon }); setError(null); };
+  const handleScanCurrentPlace = () => { if (place) void runScan(place); else setError("Pesquise primeiro uma cidade, bairro ou local."); };
+  const handleCategoriesChange = (next: CategoryKey[]) => { setCategories(next); setError(null); if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, contactFilters, noWebsiteOnly); };
+  const handleToggleSave = (lead: Establishment) => { if (isLeadSaved(lead.id)) removeLead(lead.id); else saveLead(lead); setSavedLeads(getSavedLeads()); };
+  const handleSignalFiltersChange = (next: SignalFilter[]) => { setSignalFilters(next); if (allResults.length > 0) void refreshPresenceFilters(allResults, next, contactFilters, noWebsiteOnly); };
+  const handleContactFiltersChange = (next: ContactFilter[]) => { setContactFilters(next); if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, next, noWebsiteOnly); };
+  const handleNoWebsiteChange = (enabled: boolean) => { setNoWebsiteOnly(enabled); if (allResults.length > 0) void refreshPresenceFilters(allResults, signalFilters, contactFilters, enabled); };
 
   const visibleResults = useMemo(() => {
     let list = applyPresenceFilters(results.filter((lead) => categoryMatches(lead, categories)), signalFilters, contactFilters, noWebsiteOnly);
     list = list.filter((lead) => ratingMatchesFilter(lead.rating, ratingFilters));
-    if (priceFilter !== "any") {
-      const level = Number.parseInt(priceFilter, 10);
-      list = list.filter((lead) => lead.priceLevel === level);
-    }
+    if (priceFilter !== "any") { const level = Number.parseInt(priceFilter, 10); list = list.filter((lead) => lead.priceLevel === level); }
     const sorted = [...list];
     sorted.sort((a, b) => {
       switch (sortKey) {
@@ -246,18 +185,14 @@ function Index() {
     return sorted;
   }, [results, categories, signalFilters, contactFilters, noWebsiteOnly, ratingFilters, priceFilter, sortKey]);
 
-  const signalTitle = signalFilters.length === 0
-    ? "Estabelecimentos"
-    : signalFilters.length === 1
-      ? `Sinal ${signalFilters[0] === "zero" ? "Zero" : signalFilters[0] === "weak" ? "Fraco" : signalFilters[0] === "medium" ? "Médio" : "Alto"}`
-      : `${signalFilters.length} sinais selecionados`;
+  const signalTitle = signalFilters.length === 0 ? "Estabelecimentos" : signalFilters.length === 1 ? `Sinal ${signalFilters[0] === "zero" ? "Zero" : signalFilters[0] === "weak" ? "Fraco" : signalFilters[0] === "medium" ? "Médio" : "Alto"}` : `${signalFilters.length} sinais selecionados`;
 
   return (
     <div className="flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground lg:h-screen">
       <header className="relative z-[3000] shrink-0 border-b border-border bg-card/95 px-3 py-2 pr-14 shadow-sm backdrop-blur lg:flex lg:min-h-14 lg:items-center lg:gap-3 lg:px-3 lg:pr-16">
-        <div className="flex min-w-0 items-center gap-2"><div className="flex shrink-0 items-center gap-2"><Radar className="h-5 w-5 text-signal-zero" /><span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span></div><div className="min-w-0 flex-1 lg:hidden"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
-        <div className="mt-2 min-w-0 lg:mt-0 lg:w-[clamp(300px,32vw,460px)] lg:flex-none"><div className="hidden lg:block"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
-        <div className="mt-2 flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:flex lg:shrink lg:items-center"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalFilters={signalFilters} onSignalFiltersChange={handleSignalFiltersChange} contactFilters={contactFilters} onContactFiltersChange={handleContactFiltersChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /></div></div>
+        <div className="flex shrink-0 min-w-0 items-center gap-2"><div className="flex shrink-0 items-center gap-2"><Radar className="h-5 w-5 text-signal-zero" /><span className="hidden text-sm font-bold tracking-tight sm:inline">Sinal <span className="text-gradient-signal">Zero</span></span></div><div className="min-w-0 flex-1 lg:hidden"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
+        <div className="mt-2 min-w-0 flex-1 lg:mt-0 lg:flex lg:min-w-[260px]"><div className="hidden w-full lg:block"><PlaceSearchBar onPick={handlePickPlace} scanning={scanning || verifyingPresence} currentLabel={place?.shortLabel ?? null} /></div></div>
+        <div className="mt-2 flex shrink-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:flex lg:items-center"><CategoryMenu value={categories} onChange={handleCategoriesChange} onScan={handleScanCurrentPlace} scanning={scanning || verifyingPresence} /><FiltersMenu ratingFilters={ratingFilters} onRatingFiltersChange={setRatingFilters} priceFilter={priceFilter} onPriceFilterChange={setPriceFilter} signalFilters={signalFilters} onSignalFiltersChange={handleSignalFiltersChange} contactFilters={contactFilters} onContactFiltersChange={handleContactFiltersChange} noWebsiteOnly={noWebsiteOnly} onNoWebsiteOnlyChange={handleNoWebsiteChange} sortKey={sortKey} onSortKeyChange={setSortKey} /><div className="hidden items-center gap-2 lg:flex"><SavedLeadsDrawer leads={savedLeads} onRemove={(id) => { removeLead(id); setSavedLeads(getSavedLeads()); }} /></div></div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:relative lg:flex-row lg:gap-3 lg:p-3">
         <div className="flex shrink-0 border-b border-border bg-card px-2 py-1.5 lg:hidden"><div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Área de trabalho"><button type="button" role="tab" aria-selected={mobileView === "leads"} onClick={() => setMobileView("leads")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "leads" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><Rows3 className="h-4 w-4" />Leads <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{visibleResults.length}</span></button><button type="button" role="tab" aria-selected={mobileView === "map"} onClick={() => setMobileView("map")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition-all ${mobileView === "map" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><MapIcon className="h-4 w-4" />Mapa</button></div></div>
