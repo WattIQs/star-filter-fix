@@ -45,8 +45,8 @@ export function PlaceRow({ place, active, saved, onSelect, onToggleSave, animati
       onClick={() => onSelect(place.id)}
       style={animationStyle}
       className={cn(
-        "group relative cursor-pointer rounded-xl border border-border/60 bg-card/80 px-3.5 py-3 opacity-0 [animation:lead-enter_560ms_cubic-bezier(.22,1,.36,1)_var(--lead-delay)_both] transition-all duration-200",
-        "hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-[0_14px_34px_-24px_var(--color-primary)]",
+        "premium-card group relative cursor-pointer rounded-xl border border-border/60 bg-card/80 px-3.5 py-3 opacity-0 [animation:lead-enter_560ms_cubic-bezier(.22,1,.36,1)_var(--lead-delay)_both]",
+        "hover:border-primary/30 hover:bg-card",
         active && "border-primary/35 bg-primary/7 shadow-[0_14px_34px_-20px_var(--color-primary)] ring-1 ring-primary/10",
       )}
     >
@@ -72,7 +72,7 @@ export function PlaceRow({ place, active, saved, onSelect, onToggleSave, animati
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <SignalBadge signalCount={place.signalCount} />
-          <button type="button" aria-label={saved ? "Remover dos salvos" : "Salvar lead"} onClick={(e) => { e.stopPropagation(); onToggleSave(place); }} className={cn("rounded-lg border p-1.5 transition-all hover:-translate-y-px hover:bg-accent", saved ? "border-primary/25 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground")}>
+          <button type="button" aria-label={saved ? "Remover dos salvos" : "Salvar lead"} onClick={(e) => { e.stopPropagation(); onToggleSave(place); }} className={cn("rounded-lg border p-1.5 transition-all hover:bg-accent", saved ? "border-primary/25 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground")}>
             {saved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
           </button>
         </div>
