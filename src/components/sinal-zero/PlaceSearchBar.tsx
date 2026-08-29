@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, MapPin, Search } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { searchPlacesServer, type PlaceSuggestion } from "@/lib/geo.functions";
 import { resolveMunicipalityServer, searchMunicipalitiesServer, type MunicipalitySuggestion } from "@/lib/municipality-search";
@@ -125,10 +125,12 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
     } else if (event.key === "Escape") setOpen(false);
   };
 
+  const showSpinner = loading || scanning;
+
   return (
     <div ref={boxRef} className="relative min-w-0 flex-1">
-      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground">
-        {scanning || loading ? <span className="app-spinner h-3.5 w-3.5" aria-hidden="true" /> : <Search className="h-3.5 w-3.5" />}
+      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" aria-hidden="true">
+        {showSpinner ? <span className="location-spinner" /> : <Search className="h-3.5 w-3.5" />}
       </span>
       <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow,transform] duration-200 placeholder:text-muted-foreground/70 focus:-translate-y-px focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
       {open && value !== pickedLabelRef.current && suggestions.length > 0 && (
