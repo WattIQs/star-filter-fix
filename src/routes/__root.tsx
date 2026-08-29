@@ -15,6 +15,7 @@ import "../hud.css";
 import "../premium-motion.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "../lib/supabase";
+import { HudRuntime } from "../components/sinal-zero/HudRuntime";
 import { MobileActions } from "../components/sinal-zero/MobileActions";
 import { ProfileMenu } from "../components/sinal-zero/ProfileMenu";
 
@@ -106,6 +107,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate>
+        <HudRuntime />
         <div className="route-content-enter"><Outlet /></div>
         {!isPublicRoute && <ProfileMenu />}
         {!isPublicRoute && <MobileActions />}
