@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import { MapPin, Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { searchPlacesServer, type PlaceSuggestion } from "@/lib/geo.functions";
@@ -141,15 +141,15 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
   return (
     <div ref={boxRef} className="relative min-w-0 flex-1">
       <span className="pointer-events-none absolute left-3 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center text-muted-foreground" aria-hidden="true">
-        {showSpinner ? (
-          <dotlottie-wc
-            src={LOTTIE_LOADER_URL}
-            autoplay
-            loop
-            mode="forward"
-            style={{ width: "18px", height: "18px" }}
-          />
-        ) : <Search className="h-3.5 w-3.5" />}
+        {showSpinner
+          ? createElement("dotlottie-wc", {
+              src: LOTTIE_LOADER_URL,
+              autoplay: true,
+              loop: true,
+              mode: "forward",
+              style: { width: "18px", height: "18px" },
+            } as Record<string, unknown>)
+          : <Search className="h-3.5 w-3.5" />}
       </span>
       <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow,transform] duration-500 ease-out placeholder:text-muted-foreground/70 focus:-translate-y-px focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
       {open && value !== pickedLabelRef.current && suggestions.length > 0 && (
@@ -165,7 +165,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
                 return (
                   <li key={`${municipality.id}-${municipality.uf}`}>
                     <button type="button" onMouseEnter={() => setHighlight(index)} onClick={() => void pick(suggestion)} className={cn("flex min-h-12 w-full items-start gap-2 px-3 py-2.5 text-left transition-all duration-300 ease-out active:scale-[.99]", index === highlight ? "bg-muted" : "hover:bg-muted/60")}>
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary transition-transform duration-300 group-hover:scale-105" />
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <span className="min-w-0"><span className="block truncate text-xs font-semibold text-foreground sm:text-sm">{municipality.label}</span></span>
                     </button>
                   </li>
