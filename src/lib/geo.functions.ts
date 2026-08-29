@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { BoundingBox, CategoryKey, Establishment } from "./types";
+import { CATEGORIES, type BoundingBox, type CategoryKey, type Establishment } from "./types";
 import { buildOverpassQuery } from "./overpass-query";
 import { fetchWithTimeout, OSM_UA, OVERPASS_MIRRORS, queryOverpass } from "./geo.server";
 import { safeQueryOverturePlaces } from "./overture.server";
