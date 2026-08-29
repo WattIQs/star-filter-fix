@@ -72,20 +72,31 @@ function categoryTags(row: OvertureRow): Record<string, string> {
   return tags;
 }
 
+function normalizeArea(area: BoundingBox): BoundingBox | null {
+  const south = Number(area.south);
+  const north = Number(area.north);
+  const west = Number(area.west);
+  const east = Number(area.east);
+  if (![south, north, west, east].every(Number.isFinite)) return null;
+  if (south < -90 || north > 90 || west < -180 || east > 180 || south > north || west > east) return null;
+  return { south, north, west, east };
+}
+
 function areaSizeDeg2(area: BoundingBox): number {
   return Math.abs((area.north - area.south) * (area.east - area.west));
 }
 
 export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassElement[]> {
-  if (areaSizeDeg2(area) > MAX_OVERTURE_AREA_DEG2) return [];
+  const bounds = normalizeArea(area);
+  if (!bounds || areaSizeDeg2(bounds) > MAX_OVERTURE_AREA_DEG2) return [];
 
   const { DuckDBInstance } = await import("@duckdb/node-api");
   const release = process.env.OVERTURE_RELEASE?.trim() || DEFAULT_RELEASE;
   const path = `s3://overturemaps-us-west-2/release/${release}/theme=places/type=place/*`;
-  const south = Math.min(area.south, area.north);
-  const north = Math.max(area.south, area.north);
-  const west = Math.min(area.west, area.east);
-  const east = Math.max(area.west, area.east);
+  const south = bounds.south;
+  const north = bounds.north;
+  const west = bounds.west;
+  const east = bounds.east;
 
   const instance = await DuckDBInstance.create(":memory:", {
     threads: "2",
@@ -166,10 +177,11 @@ export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassEl
 }
 
 export async function safeQueryOverturePlaces(area: BoundingBox): Promise<OverpassElement[]> {
-  if (areaSizeDeg2(area) > MAX_OVERTURE_AREA_DEG2) return [];
+  const bounds = normalizeArea(area);
+  if (!bounds || areaSizeDeg2(bounds) > MAX_OVERTURE_AREA_DEG2) return [];
   try {
     return await Promise.race([
-      queryOverturePlaces(area),
+      queryOverturePlaces(bounds),
       new Promise<OverpassElement[]>((resolve) => setTimeout(() => resolve([]), OVERTURE_TIMEOUT_MS)),
     ]);
   } catch {
