@@ -21,6 +21,13 @@
 @keyframes sz-scan-spin { to { transform:rotate(360deg); } }
 [data-radix-popper-content-wrapper] > [data-state="open"] { animation: sz-pop-in 380ms var(--hud-ease) both; transform-origin: var(--radix-popover-content-transform-origin,center top); }
 @keyframes sz-pop-in { from { opacity:0; transform:translate3d(0,-8px,0) scale(.975); filter:blur(2px); } to { opacity:1; transform:translate3d(0,0,0) scale(1); filter:blur(0); } }
+.profile-menu-enter { animation: sz-profile-menu-in 420ms var(--hud-ease) both; transform-origin: top right; }
+@keyframes sz-profile-menu-in { from { opacity:0; transform:translate3d(0,-8px,0) scale(.965); filter:blur(3px); } to { opacity:1; transform:translate3d(0,0,0) scale(1); filter:blur(0); } }
+.settings-modal-backdrop { animation: sz-settings-backdrop-in 360ms ease-out both; }
+.settings-modal-backdrop > button { animation: sz-settings-backdrop-in 360ms ease-out both; }
+.settings-modal-panel { animation: sz-settings-panel-in 560ms var(--hud-ease) both; transform-origin: 50% 50%; }
+@keyframes sz-settings-backdrop-in { from { opacity:0; } to { opacity:1; } }
+@keyframes sz-settings-panel-in { from { opacity:0; transform:translate3d(0,18px,0) scale(.955); filter:blur(5px); } 60% { opacity:1; transform:translate3d(0,-2px,0) scale(1.002); filter:blur(.5px); } to { opacity:1; transform:translate3d(0,0,0) scale(1); filter:blur(0); } }
 .glass-panel { transition:transform 700ms var(--hud-ease),box-shadow 700ms var(--hud-ease),border-color 500ms ease; }
 .glass-panel:hover { transform:translate3d(0,-2px,0); box-shadow:0 30px 82px -58px color-mix(in oklab,var(--color-cyan) 42%,transparent); }
 .auth-reveal { animation:sz-auth-in 1s var(--hud-ease) both; }
@@ -31,6 +38,6 @@
 @keyframes sz-title-cursor { 0%,49% { opacity:.8; } 50%,100% { opacity:0; } }
 .hud-map-surface { position:relative; isolation:isolate; }
 .hud-map-surface::after { content:""; position:absolute; inset:0; z-index:450; pointer-events:none; opacity:.18; background:radial-gradient(circle at 50% 44%,color-mix(in oklab,var(--color-cyan) 8%,transparent),transparent 58%),repeating-linear-gradient(to bottom,transparent 0 5px,color-mix(in oklab,var(--color-cyan) 2%,transparent) 5px 6px); transform:translate3d(var(--parallax-x,0px),var(--parallax-y,0px),0); transition:transform 700ms var(--hud-ease); }
-@media (prefers-reduced-motion:reduce) { .route-content-enter,.premium-card,.auth-reveal,.hud-title,.hud-glow-edge,.hud-scan-spinner { animation:none!important; opacity:1!important; transform:none!important; filter:none!important; } .hud-surface-interactive,.premium-card,.route-content-enter button,.route-content-enter a,.route-content-enter [role="button"],.glass-panel { transition:box-shadow 180ms ease,border-color 180ms ease!important; transform:none!important; } .hud-title::after { display:none!important; } }
-@media (max-width:767px) { .route-content-enter::before { opacity:.08; background-size:64px 64px; } .hud-cursor,.hud-cursor-dot { display:none!important; } .hud-map-surface::after { display:none; } .hud-surface-interactive:hover,.premium-card:hover { transform:translate3d(0,-1px,0); } }
+@media (prefers-reduced-motion:reduce) { .route-content-enter,.premium-card,.auth-reveal,.hud-title,.hud-glow-edge,.hud-scan-spinner,.profile-menu-enter,.settings-modal-backdrop,.settings-modal-panel { animation:none!important; opacity:1!important; transform:none!important; filter:none!important; } .hud-surface-interactive,.premium-card,.route-content-enter button,.route-content-enter a,.route-content-enter [role="button"],.glass-panel { transition:box-shadow 180ms ease,border-color 180ms ease!important; transform:none!important; } .hud-title::after { display:none!important; } }
+@media (max-width:767px) { .route-content-enter::before { opacity:.08; background-size:64px 64px; } .hud-cursor,.hud-cursor-dot { display:none!important; } .hud-map-surface::after { display:none; } .hud-surface-interactive:hover,.premium-card:hover { transform:translate3d(0,-1px,0); } .settings-modal-panel { max-height:calc(100vh - 2rem); overflow:auto; } }
 @keyframes sz-page-in { 0% { opacity:0; transform:translate3d(0,14px,0); filter:blur(2.5px); } 62% { opacity:.88; filter:blur(.7px); } 100% { opacity:1; transform:translate3d(0,0,0); filter:blur(0); } }
