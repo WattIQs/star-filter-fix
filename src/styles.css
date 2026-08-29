@@ -29,6 +29,7 @@
   .radar-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--color-signal-zero) 35%, transparent); animation: radar-pulse 2.5s ease-out infinite; } .radar-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--color-signal-zero) 45%, transparent) 60deg, transparent 65deg); animation: radar-sweep 2s linear infinite; }
   .app-spinner { display: inline-block; border-radius: 9999px; border: 2px solid color-mix(in oklab, var(--color-primary) 18%, transparent); border-top-color: var(--color-primary); border-right-color: color-mix(in oklab, var(--color-primary) 62%, transparent); animation: app-spinner-rotate .75s linear infinite; transform: translateZ(0); will-change: transform; }
   .profile-menu-enter { animation: profile-menu-enter .24s cubic-bezier(.22,1,.36,1) both; }
+  .animate-spin { animation: app-spinner-rotate .75s linear infinite !important; }
 }
 
 @keyframes radar-pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
