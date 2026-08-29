@@ -80,25 +80,57 @@ function AuthGate({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const isPublicRoute = location.pathname === "/auth" || location.pathname === "/auth/callback";
 
   useEffect(() => {
-    if (!supabase || isPublicRoute) { setChecking(false); return; }
+    if (isPublicRoute) {
+      setChecking(false);
+      setAuthorized(true);
+      return;
+    }
+
     let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
+    setChecking(true);
+    setAuthorized(false);
+
+    if (!supabase) {
+      setChecking(false);
+      return;
+    }
+
+    void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
-      if (!data.session) void navigate({ to: "/auth", replace: true });
+      if (error || !data.session) {
+        setChecking(false);
+        void navigate({ to: "/auth", replace: true });
+        return;
+      }
+      setAuthorized(true);
       setChecking(false);
     });
+
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!active || isPublicRoute) return;
-      if (event === "SIGNED_OUT" || !session) void navigate({ to: "/auth", replace: true });
+      if (!active) return;
+      if (event === "SIGNED_OUT" || !session) {
+        setAuthorized(false);
+        void navigate({ to: "/auth", replace: true });
+      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        setAuthorized(true);
+      }
     });
-    return () => { active = false; listener.subscription.unsubscribe(); };
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, [navigate, isPublicRoute]);
 
-  if (isPublicRoute || !checking) return <>{children}</>;
-  return <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground"><div className="app-spinner h-9 w-9" role="status" aria-label="Verificando sessão" /></main>;
+  if (isPublicRoute) return <>{children}</>;
+  if (checking || !authorized) {
+    return <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground"><div className="app-spinner h-9 w-9" role="status" aria-label="Verificando sessão" /></main>;
+  }
+  return <>{children}</>;
 }
 
 function RootComponent() {
