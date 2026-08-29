@@ -23,7 +23,6 @@ function applyTheme(theme: Theme) {
 
 export function ProfileMenu() {
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [draftName, setDraftName] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -39,9 +38,8 @@ export function ProfileMenu() {
     const { data } = await supabase.auth.getUser();
     const user = data.user;
     if (!user) return;
-    const nextEmail = user.email ?? "";
+    const userEmail = user.email ?? "";
     const metadata = user.user_metadata ?? {};
-    setEmail(nextEmail);
     const nextName = typeof metadata.full_name === "string" ? metadata.full_name : typeof metadata.name === "string" ? metadata.name : "";
     setDisplayName(nextName);
     setDraftName(nextName);
@@ -50,7 +48,7 @@ export function ProfileMenu() {
       setAvatar(providerAvatar);
       return;
     }
-    try { setAvatar(await buildGravatarUrl(nextEmail)); } catch { setAvatar(null); }
+    try { setAvatar(await buildGravatarUrl(userEmail)); } catch { setAvatar(null); }
   };
 
   useEffect(() => {
@@ -76,9 +74,9 @@ export function ProfileMenu() {
   }, [open]);
 
   const initials = useMemo(() => {
-    const source = displayName || email.split("@")[0] || "Star Filter";
+    const source = displayName || "Star Filter";
     return source.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "SF";
-  }, [displayName, email]);
+  }, [displayName]);
 
   const saveName = async () => {
     if (!supabase) return;
@@ -127,8 +125,8 @@ export function ProfileMenu() {
   };
 
   return (
-    <div ref={panelRef} className="fixed right-3 top-3 z-[6000] lg:right-5 lg:top-4">
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Abrir perfil" className="group relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-lg backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-105 hover:border-primary/50 hover:shadow-primary/15">
+    <div ref={panelRef} data-profile-menu className="fixed right-3 top-2.5 z-[6000] lg:right-4 lg:top-3">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Abrir perfil" data-profile-trigger className="group relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-lg backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-105 hover:border-primary/50 hover:shadow-primary/15">
         {avatar ? <img src={avatar} alt="Foto de perfil" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" onError={() => setAvatar(null)} /> : <span className="text-xs font-bold text-primary">{initials}</span>}
         <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-primary/0 transition-all duration-300 group-hover:ring-primary/30" />
       </button>
