@@ -37,7 +37,27 @@ html.light {
   .saved-lead-enter { opacity: 0; animation: saved-lead-enter .42s cubic-bezier(.22,1,.36,1) both; }
   .profile-section-label { padding: 0 .5rem; font-size: 9px; font-weight: 700; letter-spacing: .16em; color: var(--color-muted-foreground); }
   .animate-spin { animation: app-spinner-rotate .75s linear infinite !important; }
+  .premium-button { position: relative; isolation: isolate; overflow: hidden; transition: transform .28s cubic-bezier(.22,1,.36,1), background-color .28s ease, border-color .28s ease, color .22s ease, box-shadow .35s ease, filter .35s ease; }
+  .premium-button::after { content: ""; position: absolute; inset: -80% -35%; z-index: -1; background: linear-gradient(110deg, transparent 35%, color-mix(in oklab, white 12%, transparent) 48%, transparent 61%); transform: translateX(-55%) rotate(8deg); transition: transform .7s cubic-bezier(.22,1,.36,1); pointer-events: none; }
+  .premium-button:hover:not(:disabled) { transform: translateY(-1px) scale(1.012); box-shadow: 0 12px 32px -18px color-mix(in oklab, var(--color-primary) 55%, transparent), 0 0 0 1px color-mix(in oklab, var(--color-primary) 12%, transparent) inset; filter: brightness(1.04); }
+  .premium-button:hover:not(:disabled)::after { transform: translateX(55%) rotate(8deg); }
+  .premium-button:active:not(:disabled) { transform: translateY(0) scale(.985); transition-duration: .08s; }
+  .premium-card { position: relative; overflow: hidden; transition: transform .32s cubic-bezier(.22,1,.36,1), border-color .28s ease, box-shadow .38s ease, background-color .28s ease; }
+  .premium-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 25%, color-mix(in oklab, white 5%, transparent) 48%, transparent 68%); transform: translateX(-115%); transition: transform .8s cubic-bezier(.22,1,.36,1); }
+  .premium-card:hover { transform: translateY(-3px); border-color: color-mix(in oklab, var(--color-primary) 32%, var(--color-border)); box-shadow: 0 20px 48px -28px color-mix(in oklab, var(--color-primary) 42%, transparent), 0 0 24px -20px color-mix(in oklab, var(--color-primary) 55%, transparent); }
+  .premium-card:hover::after { transform: translateX(115%); }
 }
+
+header button, aside button, form button { position: relative; transition: transform .28s cubic-bezier(.22,1,.36,1), background-color .28s ease, border-color .28s ease, color .22s ease, box-shadow .35s ease; }
+header button:hover:not(:disabled), aside button:hover:not(:disabled), form button:hover:not(:disabled) { transform: translateY(-1px) scale(1.012); box-shadow: 0 10px 28px -20px color-mix(in oklab, var(--color-primary) 58%, transparent); }
+header button:active:not(:disabled), aside button:active:not(:disabled), form button:active:not(:disabled) { transform: scale(.985); }
+input, select, textarea { transition: border-color .25s ease, background-color .25s ease, box-shadow .3s ease; }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 13%, transparent), 0 12px 30px -24px color-mix(in oklab, var(--color-primary) 55%, transparent); }
+
+.app-page-enter { animation: page-enter .55s cubic-bezier(.22,1,.36,1) both; }
+.panel-enter { animation: panel-enter .42s cubic-bezier(.22,1,.36,1) both; }
+.list-item-enter { opacity: 0; animation: list-item-enter .48s cubic-bezier(.22,1,.36,1) both; }
+.stagger-1 { animation-delay: .04s !important; } .stagger-2 { animation-delay: .08s !important; } .stagger-3 { animation-delay: .12s !important; } .stagger-4 { animation-delay: .16s !important; } .stagger-5 { animation-delay: .20s !important; } .stagger-6 { animation-delay: .24s !important; }
 
 @keyframes radar-pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
 @keyframes radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -45,6 +65,9 @@ html.light {
 @keyframes lead-enter { from { opacity: 0; transform: translateY(8px) scale(0.995); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes soft-appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes saved-lead-enter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes page-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes panel-enter { from { opacity: 0; transform: translateY(10px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+@keyframes list-item-enter { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes auth-card-enter { from { opacity: 0; transform: translateY(18px) scale(0.97); filter: blur(8px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
 @keyframes auth-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes auth-orbit { from { transform: rotate(0deg) translateX(10px) rotate(0deg); opacity: .35; } to { transform: rotate(360deg) translateX(10px) rotate(-360deg); opacity: .7; } }
@@ -58,6 +81,6 @@ html.light {
 .auth-orbit { animation: auth-orbit 14s linear infinite; } .auth-orbit-delay { animation-duration: 19s; animation-direction: reverse; }
 .auth-shake { animation: auth-shake .35s ease-in-out; } .auth-success-enter { animation: auth-success .55s cubic-bezier(.22,1,.36,1) both; }
 
-.leaflet-container { background: var(--color-background); font-family: inherit; } .leaflet-control-zoom { border: 0 !important; box-shadow: 0 10px 28px -18px var(--color-primary) !important; } .leaflet-control-zoom a, .leaflet-control-attribution { background: color-mix(in oklab, var(--color-card) 94%, transparent) !important; color: var(--color-muted-foreground) !important; border-color: var(--color-border) !important; backdrop-filter: blur(12px); } .leaflet-control-zoom a { transition: background-color .18s ease, color .18s ease, transform .18s ease; } .leaflet-control-zoom a:hover { background: var(--color-accent) !important; color: var(--color-foreground) !important; } .leaflet-control-attribution a { color: var(--color-muted-foreground) !important; } .leaflet-tooltip { background: color-mix(in oklab, var(--color-card) 96%, transparent); border: 1px solid var(--color-border); color: var(--color-foreground); font-size: 11px; box-shadow: 0 10px 28px -18px black; backdrop-filter: blur(10px); } .leaflet-tooltip-top::before { border-top-color: var(--color-border); }
+.leaflet-container { background: var(--color-background); font-family: inherit; } .leaflet-control-zoom { border: 0 !important; box-shadow: 0 10px 28px -18px var(--color-primary) !important; } .leaflet-control-zoom a, .leaflet-control-attribution { background: color-mix(in oklab, var(--color-card) 94%, transparent) !important; color: var(--color-muted-foreground) !important; border-color: var(--color-border) !important; backdrop-filter: blur(12px); } .leaflet-control-zoom a { transition: background-color .24s ease, color .24s ease, transform .28s cubic-bezier(.22,1,.36,1), box-shadow .32s ease, background-image .32s ease; } .leaflet-control-zoom a:hover { background: var(--color-accent) !important; background-image: linear-gradient(135deg, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 55%) !important; color: var(--color-foreground) !important; transform: scale(1.045); box-shadow: 0 8px 22px -14px var(--color-primary); } .leaflet-control-attribution a { color: var(--color-muted-foreground) !important; } .leaflet-tooltip { background: color-mix(in oklab, var(--color-card) 96%, transparent); border: 1px solid var(--color-border); color: var(--color-foreground); font-size: 11px; box-shadow: 0 10px 28px -18px black; backdrop-filter: blur(10px); } .leaflet-tooltip-top::before { border-top-color: var(--color-border); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }
