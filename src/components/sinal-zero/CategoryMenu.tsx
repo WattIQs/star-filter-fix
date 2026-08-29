@@ -16,9 +16,21 @@ export function CategoryMenu({ value, onChange, onScan, scanning = false }: Cate
   const toggle = (key: CategoryKey) => onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <Button type="button" onClick={onScan} disabled={scanning || !onScan} aria-label={scanning ? "Varrendo área" : "Varrer área"} className={cn("group relative h-9 shrink-0 gap-2 overflow-hidden rounded-lg border border-primary/30 px-3 text-xs font-semibold shadow-md transition-all duration-200", "bg-primary text-primary-foreground hover:translate-y-0 hover:bg-primary/90 hover:shadow-[0_8px_24px_-16px_var(--color-primary)]", "disabled:cursor-not-allowed disabled:opacity-60")}>
-        {scanning && <span className="pointer-events-none absolute inset-[2px] rounded-[7px] border border-primary-foreground/20 opacity-70" aria-hidden="true" />}
-        <span className="relative flex items-center gap-2">{scanning ? <span className="hud-scan-spinner h-3.5 w-3.5" aria-hidden="true" /> : <Radar className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-45" />}<span>{scanning ? "Varrendo..." : "Varrer área"}</span></span>
+      <Button
+        type="button"
+        onClick={onScan}
+        disabled={scanning || !onScan}
+        aria-label="Varrer área"
+        className={cn(
+          "group relative h-9 shrink-0 gap-2 overflow-hidden rounded-lg border border-primary/30 px-3 text-xs font-semibold shadow-md transition-colors duration-200",
+          "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_8px_24px_-16px_var(--color-primary)]",
+          "disabled:cursor-not-allowed disabled:opacity-60",
+        )}
+      >
+        <span className="relative flex items-center gap-2">
+          <Radar className="h-3.5 w-3.5" />
+          <span>Varrer área</span>
+        </span>
       </Button>
       <Popover>
         <PopoverTrigger asChild><Button variant="outline" size="sm" className={cn("relative z-[3001] shrink-0 gap-1.5 border-border bg-background text-xs shadow-sm transition-all duration-200 hover:translate-y-0 hover:border-primary/30 hover:bg-accent", value.length > 0 && "border-primary/35 bg-primary/5")}><LayoutGrid className="h-3.5 w-3.5" /><span className="hidden sm:inline">Categorias</span>{value.length > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{value.length}</span>}<ChevronDown className="h-3.5 w-3.5 opacity-70" /></Button></PopoverTrigger>
