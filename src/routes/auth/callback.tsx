@@ -13,24 +13,32 @@ function AuthCallbackPage() {
 
     const finish = async () => {
       if (!supabase) {
-        if (active) void navigate({ to: "/auth" });
+        if (active) void navigate({ to: "/auth", replace: true });
         return;
       }
 
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
+      const tokenHash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
 
+      let error: Error | null = null;
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          console.error("Supabase auth callback:", error);
-          if (active) void navigate({ to: "/auth" });
-          return;
-        }
+        const result = await supabase.auth.exchangeCodeForSession(code);
+        error = result.error;
+      } else if (tokenHash && (type === "signup" || type === "email" || type === "recovery" || type === "invite")) {
+        const result = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        error = result.error;
+      }
+
+      if (error) {
+        console.error("Supabase auth callback:", error);
+        if (active) void navigate({ to: "/auth", replace: true });
+        return;
       }
 
       const { data } = await supabase.auth.getSession();
-      if (active) void navigate({ to: data.session ? "/" : "/auth" });
+      if (active) void navigate({ to: data.session ? "/" : "/auth", replace: true });
     };
 
     void finish();
