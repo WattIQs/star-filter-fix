@@ -15,6 +15,8 @@ type SearchSuggestion =
   | { kind: "municipality"; value: MunicipalitySuggestion }
   | { kind: "place"; value: PlaceSuggestion };
 
+const LOTTIE_LOADER_URL = "https://lottie.host/3952c2bb-d2d3-4b39-8482-cd4f6ac898c4/xZZIDl8jKY.lottie";
+
 export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBarProps) {
   const searchMunicipalities = useServerFn(searchMunicipalitiesServer);
   const resolveMunicipality = useServerFn(resolveMunicipalityServer);
@@ -27,6 +29,15 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
   const boxRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
   const pickedLabelRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (document.querySelector("script[data-sinal-zero-lottie]") instanceof HTMLScriptElement) return;
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = "https://unpkg.com/@lottiefiles/dotlottie-wc@latest/dist/dotlottie-wc.js";
+    script.dataset.sinalZeroLottie = "true";
+    document.head.appendChild(script);
+  }, []);
 
   useEffect(() => {
     if (pickedLabelRef.current !== null && value === pickedLabelRef.current) return;
@@ -129,12 +140,20 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
 
   return (
     <div ref={boxRef} className="relative min-w-0 flex-1">
-      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" aria-hidden="true">
-        {showSpinner ? <span className="location-spinner" /> : <Search className="h-3.5 w-3.5" />}
+      <span className="pointer-events-none absolute left-3 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center text-muted-foreground" aria-hidden="true">
+        {showSpinner ? (
+          <dotlottie-wc
+            src={LOTTIE_LOADER_URL}
+            autoplay
+            loop
+            mode="forward"
+            style={{ width: "18px", height: "18px" }}
+          />
+        ) : <Search className="h-3.5 w-3.5" />}
       </span>
-      <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow,transform] duration-200 placeholder:text-muted-foreground/70 focus:-translate-y-px focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
+      <input value={value} onChange={(event) => { pickedLabelRef.current = null; setValue(event.target.value); }} onFocus={() => suggestions.length > 0 && setOpen(true)} onKeyDown={onKeyDown} placeholder={currentLabel ?? "Buscar cidade, estado, bairro ou endereço"} aria-label="Buscar lugar no mapa" autoComplete="off" inputMode="search" className="h-10 w-full rounded-full border border-border bg-background/95 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow,transform] duration-500 ease-out placeholder:text-muted-foreground/70 focus:-translate-y-px focus:border-primary focus:ring-4 focus:ring-primary/10 sm:h-9 sm:text-xs" />
       {open && value !== pickedLabelRef.current && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-11 z-[900] origin-top overflow-hidden rounded-2xl border border-border bg-popover/98 shadow-2xl backdrop-blur-md animate-in fade-in-0 zoom-in-95 duration-150">
+        <div className="absolute left-0 right-0 top-11 z-[900] origin-top overflow-hidden rounded-2xl border border-border bg-popover/98 shadow-2xl backdrop-blur-md animate-in fade-in-0 zoom-in-95 duration-500 ease-out">
           <div className="flex items-center justify-between border-b border-border/60 px-3 py-2 text-[10px] font-medium text-muted-foreground">
             <span>Selecione o local correto antes de varrer</span>
             <span>{suggestions.length} resultado{suggestions.length === 1 ? "" : "s"}</span>
@@ -145,8 +164,8 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
                 const municipality = suggestion.value;
                 return (
                   <li key={`${municipality.id}-${municipality.uf}`}>
-                    <button type="button" onMouseEnter={() => setHighlight(index)} onClick={() => void pick(suggestion)} className={cn("flex min-h-12 w-full items-start gap-2 px-3 py-2.5 text-left transition-all duration-100 active:scale-[.99]", index === highlight ? "bg-muted" : "hover:bg-muted/60")}>
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <button type="button" onMouseEnter={() => setHighlight(index)} onClick={() => void pick(suggestion)} className={cn("flex min-h-12 w-full items-start gap-2 px-3 py-2.5 text-left transition-all duration-300 ease-out active:scale-[.99]", index === highlight ? "bg-muted" : "hover:bg-muted/60")}>
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary transition-transform duration-300 group-hover:scale-105" />
                       <span className="min-w-0"><span className="block truncate text-xs font-semibold text-foreground sm:text-sm">{municipality.label}</span></span>
                     </button>
                   </li>
@@ -155,7 +174,7 @@ export function PlaceSearchBar({ onPick, scanning, currentLabel }: PlaceSearchBa
               const place = suggestion.value;
               return (
                 <li key={`${place.lat}-${place.lon}-${index}`}>
-                  <button type="button" onMouseEnter={() => setHighlight(index)} onClick={() => void pick(suggestion)} className={cn("flex min-h-12 w-full items-start gap-2 px-3 py-2.5 text-left transition-all duration-100 active:scale-[.99]", index === highlight ? "bg-muted" : "hover:bg-muted/60")}>
+                  <button type="button" onMouseEnter={() => setHighlight(index)} onClick={() => void pick(suggestion)} className={cn("flex min-h-12 w-full items-start gap-2 px-3 py-2.5 text-left transition-all duration-300 ease-out active:scale-[.99]", index === highlight ? "bg-muted" : "hover:bg-muted/60")}>
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0"><span className="block truncate text-xs font-semibold text-foreground sm:text-sm">{place.shortLabel}</span><span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 text-muted-foreground sm:text-[11px]">{place.label}</span></span>
                   </button>
