@@ -4,52 +4,46 @@
    Tudo animado via transform/opacity/filter (sem reflow).
    ============================================================ */
 
-/* ---------- 1. Fundo tecnológico: grid + scanline + varredura ---------- */
-/* Camada decorativa, pointer-events:none para nunca bloquear cliques. */
 .hud-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
   overflow: hidden;
 }
-/* Scanline discreta que percorre o painel (intensidade média). */
+.hud-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--color-cyan) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-cyan) 3%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: .35;
+}
 .hud-backdrop::after {
   content: "";
   position: absolute;
   inset-inline: 0;
-  height: 38%;
-  top: -38%;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    color-mix(in oklab, var(--color-cyan) 7%, transparent) 55%,
-    transparent
-  );
-  animation: hud-scan 7.5s linear infinite;
+  height: 34%;
+  top: -34%;
+  background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--color-cyan) 6%, transparent) 52%, transparent);
+  animation: hud-scan 8s linear infinite;
 }
-/* Textura de linhas horizontais tipo CRT — muito sutil. */
 .hud-scanlines::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    color-mix(in oklab, var(--color-foreground) 3.5%, transparent) 0 1px,
-    transparent 1px 3px
-  );
-  opacity: 0.35;
+  background: repeating-linear-gradient(to bottom, color-mix(in oklab, var(--color-foreground) 2.5%, transparent) 0 1px, transparent 1px 4px);
+  opacity: .28;
   mix-blend-mode: overlay;
 }
-
 @keyframes hud-scan {
   0% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(0, 380%, 0); }
+  100% { transform: translate3d(0, 395%, 0); }
 }
 
-/* ---------- 2. Cantos técnicos (corner brackets) ---------- */
-/* Desenhados com gradientes: zero markup extra, zero custo de layout. */
 .hud-frame {
   position: relative;
   isolation: isolate;
@@ -65,35 +59,19 @@
   transition: border-color .35s ease, opacity .35s ease, transform .45s cubic-bezier(.22,1,.36,1);
   opacity: .75;
 }
-.hud-frame::before {
-  top: 6px; left: 6px;
-  border-top: 1.5px solid; border-left: 1.5px solid;
-  border-top-left-radius: 4px;
-}
-.hud-frame::after {
-  bottom: 6px; right: 6px;
-  border-bottom: 1.5px solid; border-right: 1.5px solid;
-  border-bottom-right-radius: 4px;
-}
+.hud-frame::before { top: 6px; left: 6px; border-top: 1.5px solid; border-left: 1.5px solid; border-top-left-radius: 4px; }
+.hud-frame::after { right: 6px; bottom: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; border-bottom-right-radius: 4px; }
 .hud-frame:hover::before { transform: translate3d(-2px, -2px, 0); opacity: 1; }
 .hud-frame:hover::after { transform: translate3d(2px, 2px, 0); opacity: 1; }
 
-/* ---------- 3. Glassmorphism dos painéis ---------- */
-/* Só a propriedade padrão: o build adiciona os prefixos necessários. */
 .hud-glass {
   background: color-mix(in oklab, var(--color-card) 72%, transparent);
   backdrop-filter: blur(16px) saturate(135%);
   border: 1px solid color-mix(in oklab, var(--color-border) 85%, transparent);
-  box-shadow:
-    0 24px 60px -40px color-mix(in oklab, var(--color-primary) 55%, transparent),
-    inset 0 1px 0 color-mix(in oklab, var(--color-foreground) 6%, transparent);
+  box-shadow: 0 24px 60px -40px color-mix(in oklab, var(--color-primary) 55%, transparent), inset 0 1px 0 color-mix(in oklab, var(--color-foreground) 6%, transparent);
 }
-
-/* Borda com brilho suave que "respira" — usada em elementos ativos. */
 .hud-glow-edge {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--color-primary) 26%, transparent),
-    0 0 22px -8px color-mix(in oklab, var(--color-primary) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 26%, transparent), 0 0 22px -8px color-mix(in oklab, var(--color-primary) 60%, transparent);
   animation: hud-breathe 4.5s ease-in-out infinite;
 }
 @keyframes hud-breathe {
@@ -101,120 +79,55 @@
   50% { box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 38%, transparent), 0 0 26px -6px color-mix(in oklab, var(--color-primary) 70%, transparent); }
 }
 
-/* ---------- 4. Linhas SVG que se desenham ---------- */
-/* O path recebe stroke-dasharray igual ao comprimento e "desenha" ao entrar. */
 .hud-draw path,
 .hud-draw line,
-.hud-draw circle {
-  stroke-dasharray: var(--hud-len, 400);
-  stroke-dashoffset: var(--hud-len, 400);
-  animation: hud-draw 1.8s cubic-bezier(.22,1,.36,1) forwards;
-}
+.hud-draw circle { stroke-dasharray: var(--hud-len, 400); stroke-dashoffset: var(--hud-len, 400); animation: hud-draw 1.8s cubic-bezier(.22,1,.36,1) forwards; }
 .hud-draw path:nth-child(2) { animation-delay: .18s; }
 .hud-draw path:nth-child(3) { animation-delay: .36s; }
 @keyframes hud-draw { to { stroke-dashoffset: 0; } }
 
-/* ---------- 5. Microinterações: botão magnético + ripple + glow ---------- */
-/* O deslocamento magnético vem do JS via --mx/--my (apenas transform). */
 .hud-magnetic {
   transform: translate3d(var(--mx, 0px), var(--my, 0px), 0);
-  transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, filter .3s ease;
+  transition: transform .32s cubic-bezier(.22,1,.36,1), box-shadow .35s ease, filter .35s ease;
   will-change: transform;
 }
-.hud-magnetic:hover {
-  filter: brightness(1.06);
-  box-shadow: 0 12px 34px -20px color-mix(in oklab, var(--color-primary) 75%, transparent);
-}
-/* Ripple disparado por JS adicionando a classe .hud-rippling. */
+.hud-magnetic:hover { filter: brightness(1.045); box-shadow: 0 12px 34px -20px color-mix(in oklab, var(--color-primary) 72%, transparent); }
 .hud-ripple { position: relative; overflow: hidden; }
-.hud-ripple > .hud-ripple-dot {
-  position: absolute;
-  width: 12px; height: 12px;
-  margin: -6px 0 0 -6px;
-  border-radius: 999px;
-  pointer-events: none;
-  background: color-mix(in oklab, var(--color-primary) 45%, transparent);
-  animation: hud-ripple .55s cubic-bezier(.22,1,.36,1) forwards;
-}
-@keyframes hud-ripple {
-  from { transform: scale(0); opacity: .8; }
-  to { transform: scale(14); opacity: 0; }
-}
+.hud-ripple > .hud-ripple-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 999px; pointer-events: none; background: color-mix(in oklab, var(--color-primary) 45%, transparent); animation: hud-ripple .55s cubic-bezier(.22,1,.36,1) forwards; }
+@keyframes hud-ripple { from { transform: scale(0); opacity: .8; } to { transform: scale(14); opacity: 0; } }
 
-/* ---------- 6. Texto "decodificando" ---------- */
-.hud-decode {
-  font-variant-ligatures: none;
-  white-space: pre-wrap;
-}
-.hud-decode[data-scrambling="true"] {
-  color: color-mix(in oklab, var(--color-cyan) 70%, var(--color-foreground));
-  text-shadow: 0 0 12px color-mix(in oklab, var(--color-cyan) 40%, transparent);
-}
-/* Cursor de digitação. */
-.hud-caret::after {
-  content: "";
-  display: inline-block;
-  width: .55ch; height: 1em;
-  margin-left: .12ch;
-  vertical-align: -.12em;
-  background: color-mix(in oklab, var(--color-primary) 85%, transparent);
-  animation: hud-caret 1.05s steps(1) infinite;
-}
+.hud-decode { font-variant-ligatures: none; white-space: pre-wrap; }
+.hud-decode[data-scrambling="true"] { color: color-mix(in oklab, var(--color-cyan) 70%, var(--color-foreground)); text-shadow: 0 0 12px color-mix(in oklab, var(--color-cyan) 40%, transparent); }
+.hud-caret::after { content: ""; display: inline-block; width: .55ch; height: 1em; margin-left: .12ch; vertical-align: -.12em; background: color-mix(in oklab, var(--color-primary) 85%, transparent); animation: hud-caret 1.05s steps(1) infinite; }
 @keyframes hud-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 
-/* ---------- 7. Cursor customizado (desktop) ---------- */
-.hud-cursor {
-  position: fixed;
-  top: 0; left: 0;
-  z-index: 9999;
-  pointer-events: none;
-  width: 26px; height: 26px;
-  margin: -13px 0 0 -13px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--color-primary) 65%, transparent);
-  mix-blend-mode: screen;
-  transition: width .25s ease, height .25s ease, margin .25s ease, opacity .25s ease, border-color .25s ease, background-color .25s ease;
-  will-change: transform;
-}
-.hud-cursor[data-active="true"] {
-  width: 46px; height: 46px; margin: -23px 0 0 -23px;
-  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
-  border-color: color-mix(in oklab, var(--color-cyan) 75%, transparent);
-}
-.hud-cursor-dot {
-  position: fixed;
-  top: 0; left: 0;
-  z-index: 9999;
-  pointer-events: none;
-  width: 4px; height: 4px;
-  margin: -2px 0 0 -2px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  will-change: transform;
-}
+.hud-cursor { position: fixed; top: 0; left: 0; z-index: 9999; pointer-events: none; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 999px; border: 1px solid color-mix(in oklab, var(--color-primary) 65%, transparent); mix-blend-mode: screen; transition: width .25s ease, height .25s ease, margin .25s ease, opacity .25s ease, border-color .25s ease, background-color .25s ease; will-change: transform; }
+.hud-cursor[data-active="true"] { width: 46px; height: 46px; margin: -23px 0 0 -23px; background: color-mix(in oklab, var(--color-primary) 12%, transparent); border-color: color-mix(in oklab, var(--color-cyan) 75%, transparent); }
+.hud-cursor-dot { position: fixed; top: 0; left: 0; z-index: 9999; pointer-events: none; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 999px; background: var(--color-primary); will-change: transform; }
 
-/* ---------- 8. Reveal de entrada (usado pelo GSAP/ScrollTrigger) ---------- */
-/* Estado inicial só aplicado quando o JS assume o controle, evitando
-   conteúdo invisível caso o script falhe. */
 [data-hud-reveal-ready="true"] .hud-reveal { opacity: 0; }
 
-/* ---------- 9. Acessibilidade / performance ---------- */
+/* -------- App-wide HUD application -------- */
+.hud-header { box-shadow: 0 14px 40px -34px color-mix(in oklab, var(--color-cyan) 55%, transparent); }
+.hud-surface-interactive { transition: transform .42s cubic-bezier(.22,1,.36,1), box-shadow .5s cubic-bezier(.22,1,.36,1), border-color .35s ease, background-color .35s ease; }
+.hud-surface-interactive::marker { display: none; }
+.hud-surface-interactive::before { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(115deg, transparent 30%, color-mix(in oklab, var(--color-foreground) 7%, transparent) 48%, transparent 64%); transform: translateX(-120%); transition: transform .9s cubic-bezier(.22,1,.36,1); }
+.hud-surface-interactive:hover { transform: translate3d(0, -2px, 0) scale(1.006); box-shadow: 0 18px 46px -32px color-mix(in oklab, var(--color-primary) 65%, transparent); border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border)); }
+.hud-surface-interactive:hover::before { transform: translateX(120%); }
+.hud-control { transition: transform .24s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .25s ease, background-color .25s ease, color .25s ease; }
+.hud-control:not(:disabled):hover { transform: translate3d(0, -1px, 0); box-shadow: 0 10px 24px -22px color-mix(in oklab, var(--color-primary) 65%, transparent); }
+.hud-control:not(:disabled):active { transform: scale(.985); transition-duration: .08s; }
+.hud-map-surface { position: relative; isolation: isolate; }
+.hud-map-surface::after { content: ""; position: absolute; inset: 0; z-index: 450; pointer-events: none; opacity: .22; background: radial-gradient(circle at 50% 45%, color-mix(in oklab, var(--color-cyan) 8%, transparent), transparent 55%), repeating-linear-gradient(to bottom, transparent 0 4px, color-mix(in oklab, var(--color-cyan) 2.5%, transparent) 4px 5px); transform: translate3d(var(--parallax-x, 0px), var(--parallax-y, 0px), 0); transition: transform .7s cubic-bezier(.22,1,.36,1); }
+
 @media (prefers-reduced-motion: reduce) {
-  .hud-backdrop::after,
-  .hud-glow-edge,
-  .hud-decode,
-  .hud-caret::after,
-  .hud-draw path,
-  .hud-draw line,
-  .hud-draw circle {
-    animation: none !important;
-  }
-  .hud-draw path, .hud-draw line, .hud-draw circle { stroke-dashoffset: 0 !important; }
-  .hud-reveal { opacity: 1 !important; transform: none !important; }
+  .hud-backdrop::after, .hud-glow-edge, .hud-decode, .hud-caret::after, .hud-draw path, .hud-draw line, .hud-draw circle { animation: none !important; }
+  .hud-draw path, .hud-draw line, .hud-draw circle, .hud-reveal { stroke-dashoffset: 0 !important; opacity: 1 !important; transform: none !important; filter: none !important; }
+  .hud-magnetic, .hud-surface-interactive, .hud-control { transition: none !important; transform: none !important; }
 }
-/* Mobile: menos camadas (sem scanline nem cursor) para preservar bateria/FPS. */
 @media (max-width: 767px) {
   .hud-backdrop::after { display: none; }
-  .hud-scanlines::before { opacity: .2; }
+  .hud-scanlines::before { opacity: .18; }
   .hud-cursor, .hud-cursor-dot { display: none; }
+  .hud-map-surface::after { opacity: .12; transform: none; }
 }
