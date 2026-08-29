@@ -92,12 +92,16 @@ export function usePointerParallax<T extends HTMLElement>(depth = 10) {
   useEffect(() => {
     const el = ref.current;
     if (!el || reduced() || small()) return;
+    let raf = 0;
     const move = (event: PointerEvent) => {
-      el.style.setProperty("--parallax-x", `${(event.clientX / window.innerWidth - 0.5) * depth}px`);
-      el.style.setProperty("--parallax-y", `${(event.clientY / window.innerHeight - 0.5) * depth}px`);
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        el.style.setProperty("--parallax-x", `${(event.clientX / window.innerWidth - 0.5) * depth}px`);
+        el.style.setProperty("--parallax-y", `${(event.clientY / window.innerHeight - 0.5) * depth}px`);
+      });
     };
     window.addEventListener("pointermove", move, { passive: true });
-    return () => window.removeEventListener("pointermove", move);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("pointermove", move); };
   }, [depth]);
   return ref;
 }
@@ -131,12 +135,10 @@ export function useHudCursor() {
   }, []);
 }
 
-/** Global visual runtime. Decorates the existing DOM once; never observes or mutates business state. */
+/** Global visual runtime. Only adds visual classes and a desktop pointer parallax layer. */
 export function useHudAutoMotion(routeKey = "") {
   useEffect(() => {
     if (typeof document === "undefined" || reduced()) return;
-    let cancelled = false;
-    let cleanupGsap: (() => void) | undefined;
     const scope = document.querySelector<HTMLElement>(".route-content-enter");
     if (!scope) return;
 
@@ -146,21 +148,22 @@ export function useHudAutoMotion(routeKey = "") {
     scope.querySelectorAll<HTMLElement>("button,a,[role=button]").forEach((el) => el.classList.add("hud-control"));
     scope.querySelector("header")?.classList.add("hud-header", "hud-scanlines", "hud-frame", "hud-glass");
     scope.querySelectorAll<HTMLElement>("section").forEach((el) => { if (el.querySelector(".leaflet-container")) el.classList.add("hud-map-surface"); });
+    scope.querySelectorAll<HTMLElement>("h1,h2").forEach((el, index) => { if (index < 2) el.classList.add("hud-title"); });
 
-    void (async () => {
-      const [{ gsap }, { ScrollTrigger }] = await Promise.all([import("gsap"), import("gsap/ScrollTrigger")]);
-      if (cancelled) return;
-      gsap.registerPlugin(ScrollTrigger);
-      const revealTargets = Array.from(scope.querySelectorAll<HTMLElement>(".hud-auto-reveal"));
-      const ctx = gsap.context(() => {
-        revealTargets.forEach((target, index) => gsap.fromTo(target, { opacity: 0, y: 14, filter: "blur(2.5px)" }, {
-          opacity: 1, y: 0, filter: "blur(0px)", duration: 1, delay: Math.min(index, 5) * 0.07, ease: "power3.out",
-          scrollTrigger: { trigger: target, start: "top 94%", once: true },
-        }));
-      }, scope);
-      cleanupGsap = () => ctx.revert();
-    })();
-
-    return () => { cancelled = true; cleanupGsap?.(); };
+    if (small() || window.matchMedia("(hover: none)").matches) return;
+    let raf = 0;
+    const move = (event: PointerEvent) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const x = (event.clientX / window.innerWidth - 0.5) * 7;
+        const y = (event.clientY / window.innerHeight - 0.5) * 7;
+        scope.querySelectorAll<HTMLElement>(".hud-map-surface").forEach((map) => {
+          map.style.setProperty("--parallax-x", `${x}px`);
+          map.style.setProperty("--parallax-y", `${y}px`);
+        });
+      });
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("pointermove", move); };
   }, [routeKey]);
 }
