@@ -11,6 +11,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import "../premium-motion.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "../lib/supabase";
 import { MobileActions } from "../components/sinal-zero/MobileActions";
@@ -104,7 +105,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate>
-        <Outlet />
+        <div className="route-content-enter"><Outlet /></div>
         {!isPublicRoute && <ProfileMenu />}
         {!isPublicRoute && <MobileActions />}
       </AuthGate>
