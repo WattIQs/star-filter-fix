@@ -11,11 +11,13 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import "../hud.css";
 import "../premium-motion.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "../lib/supabase";
 import { MobileActions } from "../components/sinal-zero/MobileActions";
 import { ProfileMenu } from "../components/sinal-zero/ProfileMenu";
+import { HudRuntime } from "../components/sinal-zero/HudRuntime";
 
 function NotFoundComponent() {
   return (
@@ -105,6 +107,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate>
+        <HudRuntime />
         <div className="route-content-enter"><Outlet /></div>
         {!isPublicRoute && <ProfileMenu />}
         {!isPublicRoute && <MobileActions />}
