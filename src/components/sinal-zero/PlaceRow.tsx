@@ -11,6 +11,7 @@ import {
   Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { CSSProperties } from "react";
 import type { Establishment } from "@/lib/types";
 import { SignalBadge } from "./SignalBadge";
 
@@ -20,6 +21,7 @@ interface PlaceRowProps {
   saved: boolean;
   onSelect: (id: string) => void;
   onToggleSave: (place: Establishment) => void;
+  animationDelay?: number;
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -35,13 +37,15 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-export function PlaceRow({ place, active, saved, onSelect, onToggleSave }: PlaceRowProps) {
+export function PlaceRow({ place, active, saved, onSelect, onToggleSave, animationDelay = 0 }: PlaceRowProps) {
   const { contact, details } = place;
+  const animationStyle = { "--lead-delay": `${animationDelay}ms` } as CSSProperties;
   return (
     <article
       onClick={() => onSelect(place.id)}
+      style={animationStyle}
       className={cn(
-        "group relative cursor-pointer rounded-xl border border-border/60 bg-card/80 px-3.5 py-3 opacity-0 [animation:lead-enter_360ms_ease-out_forwards] transition-all duration-200",
+        "group relative cursor-pointer rounded-xl border border-border/60 bg-card/80 px-3.5 py-3 opacity-0 [animation:lead-enter_560ms_cubic-bezier(.22,1,.36,1)_var(--lead-delay)_both] transition-all duration-200",
         "hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-[0_14px_34px_-24px_var(--color-primary)]",
         active && "border-primary/35 bg-primary/7 shadow-[0_14px_34px_-20px_var(--color-primary)] ring-1 ring-primary/10",
       )}
