@@ -78,7 +78,11 @@ function areaSizeDeg2(area: BoundingBox): number { return Math.abs((area.north -
 export async function queryOverturePlaces(area: BoundingBox): Promise<OverpassElement[]> {
   const bounds = normalizeArea(area);
   if (!bounds || areaSizeDeg2(bounds) > MAX_OVERTURE_AREA_DEG2) return [];
-  const { DuckDBInstance } = await import("@duckdb/node-api");
+  // Resolved through a runtime-computed specifier so no bundler tries to
+  // include (or externalize) this native Node addon. Serverless targets
+  // simply fail the import and fall back to OSM data.
+  const duckdbSpecifier = ["@duckdb", "node-api"].join("/");
+  const { DuckDBInstance } = (await import(/* @vite-ignore */ duckdbSpecifier)) as typeof import("@duckdb/node-api");
   const release = process.env.OVERTURE_RELEASE?.trim() || DEFAULT_RELEASE;
   const path = `s3://overturemaps-us-west-2/release/${release}/theme=places/type=place/*`;
   const { south, north, west, east } = bounds;
