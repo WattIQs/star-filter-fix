@@ -1,7 +1,6 @@
-// @lovable.dev/vite-tanstack-config already includes the standard TanStack Start,
-// React, Tailwind, path alias and Nitro integration used by Lovable.
-// Render runs the Nitro node-server preset; Vercel needs Nitro's Vercel
-// preset so TanStack Start's virtual entry modules are packaged correctly.
+// @lovable.dev/vite-tanstack-config provides the project's standard
+// TanStack Start, React, Tailwind, path alias and Nitro integration.
+// Vercel is detected explicitly so Nitro emits the Vercel Functions shape.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 const isVercel = process.env.VERCEL === "1";
@@ -23,8 +22,5 @@ export default defineConfig({
   },
   nitro: {
     preset: isVercel ? "vercel" : "node-server",
-    output: {
-      dir: ".output",
-    },
   },
 });
