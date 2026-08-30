@@ -120,8 +120,84 @@
 .hud-map-surface { position: relative; isolation: isolate; }
 .hud-map-surface::after { content: ""; position: absolute; inset: 0; z-index: 450; pointer-events: none; opacity: .22; background: radial-gradient(circle at 50% 45%, color-mix(in oklab, var(--color-cyan) 8%, transparent), transparent 55%), repeating-linear-gradient(to bottom, transparent 0 4px, color-mix(in oklab, var(--color-cyan) 2.5%, transparent) 4px 5px); transform: translate3d(var(--parallax-x, 0px), var(--parallax-y, 0px), 0); transition: transform .7s cubic-bezier(.22,1,.36,1); }
 
+/* -------- Busca de área — animação contínua -------- */
+.loading-state-enter {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 190px;
+  margin: 12px;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 24%, var(--color-border));
+  border-radius: 18px;
+  background: radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--color-primary) 13%, transparent), transparent 48%), color-mix(in oklab, var(--color-card) 88%, transparent);
+  box-shadow: 0 18px 42px -32px color-mix(in oklab, var(--color-primary) 60%, transparent), inset 0 1px 0 color-mix(in oklab, var(--color-foreground) 7%, transparent);
+  animation: loading-card-enter .45s cubic-bezier(.22,1,.36,1) both;
+}
+.loading-state-enter::before,
+.loading-state-enter::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 43%;
+  width: 64px;
+  height: 64px;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 55%, transparent);
+  border-radius: 999px;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.45);
+  animation: loading-radar 1.8s cubic-bezier(.15,.7,.25,1) infinite;
+}
+.loading-state-enter::after { width: 108px; height: 108px; border-color: color-mix(in oklab, var(--color-cyan) 34%, transparent); animation-delay: .6s; }
+.loading-state-spinner {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid color-mix(in oklab, var(--color-primary) 15%, transparent);
+  border-top-color: var(--color-primary);
+  border-right-color: var(--color-cyan);
+  border-radius: 999px;
+  box-shadow: 0 0 30px -8px color-mix(in oklab, var(--color-primary) 72%, transparent);
+  animation: loading-spinner .8s linear infinite !important;
+  will-change: transform;
+}
+.loading-state-spinner::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px dashed color-mix(in oklab, var(--color-cyan) 52%, transparent);
+  border-radius: inherit;
+  animation: loading-spinner-reverse 1.25s linear infinite;
+}
+.loading-state-spinner::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  box-shadow: 0 0 16px color-mix(in oklab, var(--color-primary) 90%, transparent);
+  animation: loading-dot 1s ease-in-out infinite;
+}
+.loading-state-title { position: relative; z-index: 2; animation: loading-title 1.45s ease-in-out infinite; }
+.loading-state-subtitle { position: relative; z-index: 2; animation: loading-subtitle 1.45s ease-in-out infinite; }
+.loading-state-enter .loading-progress { position: absolute; left: 14%; right: 14%; bottom: 23px; height: 2px; overflow: hidden; border-radius: 99px; background: color-mix(in oklab, var(--color-primary) 10%, transparent); }
+.loading-state-enter .loading-progress::after { content: ""; display: block; width: 30%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, transparent, var(--color-primary), var(--color-cyan), transparent); animation: loading-progress 1.15s ease-in-out infinite; }
+@keyframes loading-card-enter { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes loading-spinner { to { transform: rotate(360deg); } }
+@keyframes loading-spinner-reverse { to { transform: rotate(-360deg); } }
+@keyframes loading-radar { 0% { opacity: .72; transform: translate(-50%, -50%) scale(.4); } 65% { opacity: .18; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.55); } }
+@keyframes loading-dot { 0%,100% { transform: scale(.65); opacity: .6; } 50% { transform: scale(1.4); opacity: 1; } }
+@keyframes loading-title { 0%,100% { opacity: .7; } 50% { opacity: 1; } }
+@keyframes loading-subtitle { 0%,100% { opacity: .4; } 50% { opacity: .82; } }
+@keyframes loading-progress { 0% { transform: translateX(-150%); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(430%); opacity: 0; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .hud-backdrop::after, .hud-glow-edge, .hud-decode, .hud-caret::after, .hud-draw path, .hud-draw line, .hud-draw circle { animation: none !important; }
+  .hud-backdrop::after, .hud-glow-edge, .hud-decode, .hud-caret::after, .hud-draw path, .hud-draw line, .hud-draw circle,
+  .loading-state-enter, .loading-state-enter::before, .loading-state-enter::after, .loading-state-spinner, .loading-state-spinner::before,
+  .loading-state-spinner::after, .loading-state-title, .loading-state-subtitle, .loading-progress::after { animation: none !important; }
   .hud-draw path, .hud-draw line, .hud-draw circle, .hud-reveal { stroke-dashoffset: 0 !important; opacity: 1 !important; transform: none !important; filter: none !important; }
   .hud-magnetic, .hud-surface-interactive, .hud-control { transition: none !important; transform: none !important; }
 }
