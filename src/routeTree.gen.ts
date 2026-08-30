@@ -9,6 +9,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
+import { Route as HealthRouteImport } from './routes/health'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/', path: '/', getParentRoute: () => rootRouteImport,
@@ -19,34 +20,41 @@ const AuthRoute = AuthRouteImport.update({
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/callback', path: '/callback', getParentRoute: () => AuthRoute,
 } as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health', path: '/health', getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/auth/callback': typeof AuthCallbackRoute
+  '/health': typeof HealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/auth/callback': typeof AuthCallbackRoute
+  '/health': typeof HealthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/auth/callback': typeof AuthCallbackRoute
+  '/health': typeof HealthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/auth/callback'
+  fullPaths: '/' | '/auth' | '/auth/callback' | '/health'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/auth/callback'
-  id: '__root__' | '/' | '/auth' | '/auth/callback'
+  to: '/' | '/auth' | '/auth/callback' | '/health'
+  id: '__root__' | '/' | '/auth' | '/auth/callback' | '/health'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  HealthRoute: typeof HealthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -54,6 +62,7 @@ declare module '@tanstack/react-router' {
     '/': { id: '/'; path: '/'; fullPath: '/'; preLoaderRoute: typeof IndexRouteImport; parentRoute: typeof rootRouteImport }
     '/auth': { id: '/auth'; path: '/auth'; fullPath: '/auth'; preLoaderRoute: typeof AuthRouteImport; parentRoute: typeof rootRouteImport }
     '/auth/callback': { id: '/auth/callback'; path: '/callback'; fullPath: '/auth/callback'; preLoaderRoute: typeof AuthCallbackRouteImport; parentRoute: typeof AuthRoute }
+    '/health': { id: '/health'; path: '/health'; fullPath: '/health'; preLoaderRoute: typeof HealthRouteImport; parentRoute: typeof rootRouteImport }
   }
 }
 
@@ -61,7 +70,7 @@ interface AuthRouteChildren { AuthCallbackRoute: typeof AuthCallbackRoute }
 const AuthRouteChildren: AuthRouteChildren = { AuthCallbackRoute }
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
-const rootRouteChildren: RootRouteChildren = { IndexRoute, AuthRoute: AuthRouteWithChildren }
+const rootRouteChildren: RootRouteChildren = { IndexRoute, AuthRoute: AuthRouteWithChildren, HealthRoute }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
