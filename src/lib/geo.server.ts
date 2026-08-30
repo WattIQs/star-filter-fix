@@ -8,7 +8,10 @@ export const OVERPASS_MIRRORS = [
   "https://overpass.openstreetmap.fr/api/interpreter",
 ];
 
-const OVERPASS_REQUEST_TIMEOUT_MS = 8000;
+// Public Overpass instances can take several seconds for broad city scans.
+// Keep the per-mirror timeout high enough to avoid declaring a healthy mirror
+// dead while still guaranteeing that a failed mirror cannot block the scan.
+const OVERPASS_REQUEST_TIMEOUT_MS = 25000;
 
 export async function fetchWithTimeout(
   url: string,
