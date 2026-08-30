@@ -148,22 +148,33 @@ export const searchMunicipalitiesServer = createServerFn({ method: "POST" })
     }
   });
 
+function clampMunicipalityBounds(lat: number, lon: number, box: [string, string, string, string] | undefined) {
+  const MAX_LAT_SPAN = 0.30;
+  const MAX_LON_SPAN = 0.30;
+  const fallback = { south: lat - 0.03, north: lat + 0.03, west: lon - 0.03, east: lon + 0.03 };
+  if (!box || box.length !== 4) return fallback;
+  const south = Number(box[0]);
+  const north = Number(box[1]);
+  const west = Number(box[2]);
+  const east = Number(box[3]);
+  if (![south, north, west, east].every(Number.isFinite)) return fallback;
+  const centerLat = Math.min(Math.max(lat, south), north);
+  const centerLon = Math.min(Math.max(lon, west), east);
+  const halfLat = Math.min((north - south) / 2, MAX_LAT_SPAN / 2);
+  const halfLon = Math.min((east - west) / 2, MAX_LON_SPAN / 2);
+  return { south: centerLat - halfLat, north: centerLat + halfLat, west: centerLon - halfLon, east: centerLon + halfLon };
+}
+
 function toPlaceSuggestion(result: NominatimPlace, fallback: MunicipalitySuggestion): PlaceSuggestion | null {
   const lat = Number(result.lat);
   const lon = Number(result.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-
-  const box = result.boundingbox;
-  const boundingBox = box && box.length === 4
-    ? { south: Number(box[0]), north: Number(box[1]), west: Number(box[2]), east: Number(box[3]) }
-    : { south: lat - 0.03, north: lat + 0.03, west: lon - 0.03, east: lon + 0.03 };
-
   return {
     label: result.display_name ?? fallback.label,
     shortLabel: [fallback.name, fallback.uf].filter(Boolean).join(", "),
     lat,
     lon,
-    boundingBox,
+    boundingBox: clampMunicipalityBounds(lat, lon, result.boundingbox),
   };
 }
 
