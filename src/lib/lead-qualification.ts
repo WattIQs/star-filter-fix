@@ -34,9 +34,11 @@ export function classifySignals(tags: Record<string, string>, contact?: Establis
   const email = hasTag(tags, ["email", "contact:email"]);
   const phone = hasTag(tags, ["phone", "contact:phone", "contact:mobile", "mobile"]);
   const whatsapp = Boolean(contact?.whatsappValid) || hasTag(tags, ["contact:whatsapp", "whatsapp"]);
-  const signalCount = [website, instagram, whatsapp].filter(Boolean).length;
+  const knownBrand = hasWellKnownBrand(tags);
+  const rawSignalCount = [website, instagram, whatsapp].filter(Boolean).length;
+  const signalCount = knownBrand ? Math.max(rawSignalCount, 3) : rawSignalCount;
   const level: SignalLevel = signalCount >= 2 ? "full" : signalCount === 1 ? "weak" : "zero";
-  return { signals: { website, instagram, facebook, email, phone }, signalCount, level, knownBrand: hasWellKnownBrand(tags) };
+  return { signals: { website, instagram, facebook, email, phone }, signalCount, level, knownBrand };
 }
 
 function normalizeUrl(value: string | null): string | null {
@@ -75,17 +77,7 @@ function buildContact(tags: Record<string, string>): EstablishmentContact {
   const phoneDigits = phoneRaw ? phoneRaw.replace(/\D/g, "") : null;
   const whatsappNumber = toWhatsappNumber(explicitWhatsapp) ?? toWhatsappNumber(phoneRaw);
   const ig = instagramFromValue(getTag(tags, ["contact:instagram", "instagram"]));
-  return {
-    phoneRaw,
-    phoneDigits,
-    whatsappUrl: whatsappNumber ? `https://wa.me/${whatsappNumber}` : null,
-    whatsappValid: whatsappNumber !== null,
-    instagramHandle: ig.handle,
-    instagramUrl: ig.url,
-    facebookUrl: normalizeUrl(getTag(tags, ["contact:facebook", "facebook"])),
-    websiteUrl: normalizeUrl(getTag(tags, ["website", "contact:website"])),
-    email: getTag(tags, ["email", "contact:email"]),
-  };
+  return { phoneRaw, phoneDigits, whatsappUrl: whatsappNumber ? `https://wa.me/${whatsappNumber}` : null, whatsappValid: whatsappNumber !== null, instagramHandle: ig.handle, instagramUrl: ig.url, facebookUrl: normalizeUrl(getTag(tags, ["contact:facebook", "facebook"])), websiteUrl: normalizeUrl(getTag(tags, ["website", "contact:website"])), email: getTag(tags, ["email", "contact:email"]) };
 }
 
 const CUISINE_LABELS: Record<string, string> = { pizza: "Pizzaria", burger: "Hamburgueria", regional: "Regional", brazilian: "Brasileira", italian: "Italiana", japanese: "Japonesa", chinese: "Chinesa", coffee_shop: "Cafeteria", ice_cream: "Sorveteria", sandwich: "Sanduíches", bakery: "Padaria", barbecue: "Churrasco", steak_house: "Steakhouse", seafood: "Frutos do mar", vegetarian: "Vegetariana", mexican: "Mexicana", arab: "Árabe" };
@@ -108,7 +100,7 @@ export function processOverpassResults(elements: Array<{ type: string; id: numbe
     seen.add(id);
     const contact = buildContact(tags);
     const classification = classifySignals(tags, contact), details = buildDetails(tags), rating = extractRating(tags), priceLevel = extractPriceLevel(tags);
-    results.push({ id, osmType: element.type, osmId: element.id, name, category: resolved.label, categoryKey: resolved.key, address: buildAddress(tags), lat: center.lat, lon: center.lon, tags, signals: classification.signals, contact, details, contactable: Boolean(contact.whatsappValid || contact.instagramUrl), signalCount: classification.signalCount, level: classification.level, rating, priceLevel, googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${center.lat},${center.lon}`)}`, osmUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`, directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${center.lat},${center.lon}` });
+    results.push({ id, osmType: element.type, osmId: element.id, name, category: resolved.label, categoryKey: resolved.key, address: buildAddress(tags), lat: center.lat, lon: center.lon, tags, signals: classification.signals, contact, details, contactable: Boolean(contact.whatsappValid || contact.instagramUrl), signalCount: classification.signalCount, level: classification.level, knownBrand: classification.knownBrand, rating, priceLevel, googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${center.lat},${center.lon}`)}`, osmUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`, directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${center.lat},${center.lon}` });
   }
   return results;
 }
