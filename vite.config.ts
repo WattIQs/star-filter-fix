@@ -7,19 +7,11 @@ import { nitro } from "nitro/vite";
 const isRender = Boolean(process.env.RENDER);
 
 export default defineConfig({
-  resolve: {
-    tsconfigPaths: true,
-  },
-  optimizeDeps: {
-    exclude: ["@tanstack/start-server-core"],
-  },
+  resolve: { tsconfigPaths: true },
   plugins: [
     tailwindcss(),
     tanstackStart(),
-    nitro({
-      preset: isRender ? "node-server" : "vercel",
-      noExternals: true,
-    }),
     viteReact(),
+    nitro({ preset: isRender ? "node-server" : "vercel" }),
   ],
 });
