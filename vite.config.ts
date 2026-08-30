@@ -18,7 +18,7 @@ export default defineConfig({
     tanstackStart(),
     nitro({
       preset: isRender ? "node-server" : "vercel",
-      noExternals: true,
+      noExternals: isRender,
     }),
     viteReact(),
   ],
