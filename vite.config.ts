@@ -5,13 +5,11 @@ import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 
 export default defineConfig({
-  resolve: {
-    tsconfigPaths: true,
-  },
+  resolve: { tsconfigPaths: true },
   plugins: [
     tailwindcss(),
     tanstackStart(),
-    nitro(),
     viteReact(),
+    nitro(),
   ],
 });
