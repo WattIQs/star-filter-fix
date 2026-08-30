@@ -18,15 +18,7 @@ export default defineConfig({
     tanstackStart(),
     nitro({
       preset: isRender ? "node-server" : "vercel",
-      externals: {
-        inline: [
-          "@tanstack/start-server-core",
-          "@tanstack/start-client-core",
-          "@tanstack/react-start",
-          "@tanstack/react-start-server",
-          "@tanstack/react-start-client",
-        ],
-      },
+      noExternals: true,
     }),
     viteReact(),
   ],
