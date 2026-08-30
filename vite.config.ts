@@ -10,10 +10,24 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  optimizeDeps: {
+    exclude: ["@tanstack/start-server-core"],
+  },
   plugins: [
     tailwindcss(),
     tanstackStart(),
+    nitro({
+      preset: isRender ? "node-server" : "vercel",
+      externals: {
+        inline: [
+          "@tanstack/start-server-core",
+          "@tanstack/start-client-core",
+          "@tanstack/react-start",
+          "@tanstack/react-start-server",
+          "@tanstack/react-start-client",
+        ],
+      },
+    }),
     viteReact(),
-    nitro({ preset: isRender ? "node-server" : "vercel" }),
   ],
 });
