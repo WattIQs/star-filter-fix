@@ -66,6 +66,7 @@ export interface Establishment {
   contactable: boolean;
   signalCount: number;
   level: SignalLevel;
+  knownBrand: boolean;
   rating: number | null;
   priceLevel: 1 | 2 | 3 | null;
   googleMapsUrl: string;
