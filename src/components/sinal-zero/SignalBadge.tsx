@@ -1,26 +1,6 @@
+import { Star, ThumbsDown, ThumbsUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const LEVEL_CONFIG = {
-  zero: { label: "Sinal Zero", bars: 0, className: "bg-signal-zero/15 text-signal-zero border-signal-zero/40 animate-glow-pulse" },
-  weak: { label: "Sinal Fraco", bars: 1, className: "bg-signal-weak/15 text-signal-weak border-signal-weak/40" },
-  medium: { label: "Sinal Médio", bars: 2, className: "bg-signal-weak/15 text-signal-weak border-signal-weak/40" },
-  high: { label: "Sinal Alto", bars: 3, className: "bg-cyan/15 text-cyan border-cyan/40" },
-} as const;
-
-type SignalBadgeLevel = keyof typeof LEVEL_CONFIG;
-
-export function SignalBadge({ signalCount }: { signalCount: number }) {
-  const level: SignalBadgeLevel = signalCount <= 0 ? "zero" : signalCount === 1 ? "weak" : signalCount === 2 ? "medium" : "high";
-  const config = LEVEL_CONFIG[level];
-
-  return (
-    <div className={cn("inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold tracking-wide", config.className)}>
-      <span className="flex gap-0.5" aria-hidden="true">
-        {[1, 2, 3].map((i) => (
-          <span key={i} className={cn("h-2.5 w-1 rounded-sm", i <= config.bars ? level === "high" ? "bg-cyan" : "bg-signal-weak" : "bg-muted-foreground/25")} />
-        ))}
-      </span>
-      {config.label}
-    </div>
-  );
-}
+const LEVEL_CONFIG={zero:{label:"Sinal Zero",bars:0,className:"bg-signal-zero/15 text-signal-zero border-signal-zero/40 animate-glow-pulse"},weak:{label:"Sinal Fraco",bars:1,className:"bg-signal-weak/15 text-signal-weak border-signal-weak/40"},medium:{label:"Sinal Médio",bars:2,className:"bg-signal-weak/15 text-signal-weak border-signal-weak/40"},high:{label:"Sinal Alto",bars:3,className:"bg-cyan/15 text-cyan border-cyan/40"}} as const;
+type SignalBadgeLevel=keyof typeof LEVEL_CONFIG;
+function reviewCount(tags:Record<string,string>){const raw=tags["review_count"]??tags["rating:count"]??tags["rating_count"]??tags["reviews"];if(!raw)return null;const n=Number.parseInt(raw.replace(/[^\d]/g,""),10);return Number.isFinite(n)?n:null;}
+export function SignalBadge({signalCount,rating,tags}:{signalCount:number;rating?:number|null;tags?:Record<string,string>}){const level:SignalBadgeLevel=signalCount<=0?"zero":signalCount===1?"weak":signalCount===2?"medium":"high";const config=LEVEL_CONFIG[level];const count=tags?reviewCount(tags):null;const sentiment=rating==null?null:rating>=4?"positive":rating<=2.5?"negative":"mixed";return <div className={cn("inline-flex max-w-[210px] flex-col gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-semibold tracking-wide",config.className)} title="Sinal: presença digital + reputação pública disponível"><div className="flex items-center gap-2"><span className="flex shrink-0 gap-0.5" aria-hidden="true">{[1,2,3].map(i=><span key={i} className={cn("h-2.5 w-1 rounded-sm",i<=config.bars?(level==="high"?"bg-cyan":"bg-signal-weak"):"bg-muted-foreground/25")}/>)}</span><span>{config.label}</span></div>{(rating!=null||count!=null)&&<div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium normal-case tracking-normal opacity-90">{rating!=null&&<span className="inline-flex items-center gap-0.5"><Star className="h-3 w-3 fill-current"/>{rating.toFixed(1)}</span>}{count!=null&&<span>{count.toLocaleString("pt-BR")} avaliações</span>}{sentiment&&<span className="inline-flex items-center gap-0.5">{sentiment==="positive"?<ThumbsUp className="h-3 w-3"/>:sentiment==="negative"?<ThumbsDown className="h-3 w-3"/>:null}{sentiment==="positive"?"positivo":sentiment==="negative"?"negativo":"misto"}</span>}</div>}</div>}
