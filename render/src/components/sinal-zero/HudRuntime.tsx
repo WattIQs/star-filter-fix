@@ -15,10 +15,10 @@ export function HudRuntime() {
         display:flex!important;
         align-items:center!important;
         justify-content:center!important;
-        min-height:250px!important;
+        min-height:290px!important;
         width:100%!important;
         margin:12px 0!important;
-        padding:32px 20px 28px!important;
+        padding:34px 20px 30px!important;
         box-sizing:border-box!important;
         overflow:hidden!important;
         text-align:center!important;
@@ -29,24 +29,24 @@ export function HudRuntime() {
         content:"";
         position:absolute;
         left:50%;
-        top:50%;
+        top:42%;
         border-radius:50%;
         transform:translate(-50%,-50%);
         pointer-events:none;
       }
 
       .loading-state-enter::before{
-        width:190px;
-        height:190px;
-        border:1px solid color-mix(in oklab,var(--color-primary) 9%,transparent);
-        animation:sz-target-aura 2.8s ease-in-out infinite;
+        width:250px;
+        height:250px;
+        border:1px solid color-mix(in oklab,var(--color-primary) 10%,transparent);
+        animation:sz-target-aura 3s ease-in-out infinite;
       }
 
       .loading-state-enter::after{
-        width:142px;
-        height:142px;
-        border:1px solid color-mix(in oklab,var(--color-cyan) 7%,transparent);
-        animation:sz-target-aura 2.8s .8s ease-in-out infinite;
+        width:188px;
+        height:188px;
+        border:1px solid color-mix(in oklab,var(--color-cyan) 8%,transparent);
+        animation:sz-target-aura 3s .7s ease-in-out infinite;
       }
 
       .loading-state-content{
@@ -70,17 +70,14 @@ export function HudRuntime() {
         margin-right:auto!important;
       }
 
-      /* Ícone baseado diretamente na segunda referência enviada:
-         alvo circular + anéis segmentados + ponteiro diagonal.
-         O SVG é transparente; somente o desenho laranja é renderizado. */
       .loading-state-spinner{
         position:relative!important;
         z-index:3!important;
         display:block!important;
-        width:108px!important;
-        height:108px!important;
-        min-width:108px!important;
-        min-height:108px!important;
+        width:176px!important;
+        height:176px!important;
+        min-width:176px!important;
+        min-height:176px!important;
         aspect-ratio:1/1!important;
         margin:0 auto 20px!important;
         padding:0!important;
@@ -89,14 +86,14 @@ export function HudRuntime() {
         border-radius:50%!important;
         overflow:visible!important;
         background-color:transparent!important;
-        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none'%3E%3Cg stroke='%23ffab00' stroke-width='12' stroke-linecap='round'%3E%3Cpath d='M100 18a82 82 0 0 1 58 24'/%3E%3Cpath d='M170 57a82 82 0 0 1 12 48'/%3E%3Cpath d='M174 126a82 82 0 0 1-33 43'/%3E%3Cpath d='M117 181a82 82 0 0 1-51-10'/%3E%3Cpath d='M47 151a82 82 0 0 1-27-45'/%3E%3Cpath d='M20 82a82 82 0 0 1 25-49'/%3E%3Cpath d='M59 24a82 82 0 0 1 34-7'/%3E%3C/g%3E%3Cg stroke='%23ffab00' stroke-width='12' stroke-linecap='round'%3E%3Cpath d='M100 50a50 50 0 0 1 36 15'/%3E%3Cpath d='M151 82a50 50 0 0 1-2 35'/%3E%3Cpath d='M132 137a50 50 0 0 1-35 13'/%3E%3Cpath d='M67 137a50 50 0 0 1-17-27'/%3E%3Cpath d='M50 88a50 50 0 0 1 16-27'/%3E%3Cpath d='M82 51a50 50 0 0 1 18-1'/%3E%3C/g%3E%3Ccircle cx='100' cy='100' r='25' fill='%23ffab00'/%3E%3Ccircle cx='100' cy='100' r='7' fill='%2307111f' stroke='none'/%3E%3Cpath d='M100 100L151 54' stroke='%23ffab00' stroke-width='11' stroke-linecap='round'/%3E%3Ccircle cx='154' cy='51' r='12' fill='%23ffab00' stroke='none'/%3E%3C/svg%3E")!important;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300' fill='none'%3E%3Cg fill='none' stroke='%23ffab00' stroke-width='25' stroke-linecap='round'%3E%3Cpath d='M87 42A128 128 0 0 1 250 91'/%3E%3Cpath d='M259 121A128 128 0 0 1 234 230'/%3E%3Cpath d='M210 253A128 128 0 0 1 105 264'/%3E%3Cpath d='M78 249A128 128 0 0 1 42 145'/%3E%3Cpath d='M46 112A128 128 0 0 1 65 68'/%3E%3C/g%3E%3Cg fill='none' stroke='%23ffab00' stroke-width='25' stroke-linecap='round'%3E%3Cpath d='M109 91A82 82 0 0 1 198 101'/%3E%3Cpath d='M214 125A82 82 0 0 1 196 197'/%3E%3Cpath d='M172 214A82 82 0 0 1 105 203'/%3E%3Cpath d='M87 183A82 82 0 0 1 88 115'/%3E%3Cpath d='M103 99A82 82 0 0 1 109 91'/%3E%3C/g%3E%3Ccircle cx='150' cy='150' r='37' fill='%23ffab00'/%3E%3Ccircle cx='150' cy='150' r='10' fill='%2307111f'/%3E%3Cpath d='M150 150L222 86' stroke='%23ffab00' stroke-width='22' stroke-linecap='round'/%3E%3Ccircle cx='230' cy='79' r='20' fill='%23ffab00'/%3E%3C/svg%3E")!important;
         background-repeat:no-repeat!important;
         background-position:center!important;
-        background-size:contain!important;
-        box-shadow:0 0 34px -12px color-mix(in oklab,var(--color-primary) 90%,transparent)!important;
-        animation:sz-target-spin 3.2s linear infinite!important;
+        background-size:100% 100%!important;
+        box-shadow:0 0 38px -10px color-mix(in oklab,var(--color-primary) 85%,transparent)!important;
+        animation:sz-target-spin 4.6s cubic-bezier(.55,.08,.35,.92) infinite!important;
         transform-origin:50% 50%!important;
-        will-change:transform;
+        will-change:transform,opacity,filter;
       }
 
       .loading-state-spinner::before,
@@ -111,16 +108,16 @@ export function HudRuntime() {
         background:inherit!important;
         background-repeat:no-repeat!important;
         background-position:center!important;
-        background-size:contain!important;
+        background-size:100% 100%!important;
         opacity:0!important;
       }
 
       .loading-state-spinner::before{
-        animation:sz-target-fragment-a 3.2s linear infinite!important;
+        animation:sz-target-fragment-a 4.6s ease-in-out infinite!important;
       }
 
       .loading-state-spinner::after{
-        animation:sz-target-fragment-b 3.2s linear infinite!important;
+        animation:sz-target-fragment-b 4.6s ease-in-out infinite!important;
       }
 
       .loading-state-title,
@@ -171,29 +168,31 @@ export function HudRuntime() {
 
       @keyframes sz-target-spin{
         0%{transform:rotate(0deg) scale(1);opacity:1;filter:none}
-        34%{transform:rotate(122deg) scale(1);opacity:1;filter:none}
-        47%{transform:rotate(169deg) scale(.985);opacity:.62;filter:blur(.6px)}
-        55%{transform:rotate(198deg) scale(1);opacity:.94;filter:blur(.2px)}
+        28%{transform:rotate(100deg) scale(1.015);opacity:1;filter:none}
+        42%{transform:rotate(151deg) scale(.97);opacity:.78;filter:blur(.35px)}
+        49%{transform:rotate(177deg) scale(.90);opacity:.48;filter:blur(1.1px)}
+        56%{transform:rotate(202deg) scale(.98);opacity:.82;filter:blur(.3px)}
+        66%{transform:rotate(238deg) scale(1.015);opacity:1;filter:none}
         100%{transform:rotate(360deg) scale(1);opacity:1;filter:none}
       }
 
       @keyframes sz-target-fragment-a{
-        0%,42%,100%{opacity:0;transform:rotate(0deg) translate(0,0)}
-        47%{opacity:.72;transform:rotate(17deg) translate(3px,-2px)}
-        54%{opacity:.45;transform:rotate(31deg) translate(-3px,2px)}
-        62%{opacity:0;transform:rotate(44deg) translate(0,0)}
+        0%,40%,100%{opacity:0;transform:rotate(0deg) translate(0,0) scale(1)}
+        45%{opacity:.48;transform:rotate(9deg) translate(7px,-5px) scale(1.01)}
+        51%{opacity:.26;transform:rotate(22deg) translate(-9px,7px) scale(.98)}
+        60%{opacity:0;transform:rotate(36deg) translate(0,0) scale(1)}
       }
 
       @keyframes sz-target-fragment-b{
-        0%,44%,100%{opacity:0;transform:rotate(0deg) translate(0,0)}
-        49%{opacity:.66;transform:rotate(-14deg) translate(-3px,2px)}
-        56%{opacity:.42;transform:rotate(-27deg) translate(3px,-2px)}
-        64%{opacity:0;transform:rotate(-40deg) translate(0,0)}
+        0%,43%,100%{opacity:0;transform:rotate(0deg) translate(0,0) scale(1)}
+        48%{opacity:.44;transform:rotate(-10deg) translate(-7px,5px) scale(1.01)}
+        54%{opacity:.22;transform:rotate(-24deg) translate(9px,-6px) scale(.98)}
+        62%{opacity:0;transform:rotate(-38deg) translate(0,0) scale(1)}
       }
 
       @keyframes sz-target-aura{
-        0%,100%{opacity:.12;transform:translate(-50%,-50%) scale(.82)}
-        50%{opacity:.38;transform:translate(-50%,-50%) scale(1.08)}
+        0%,100%{opacity:.10;transform:translate(-50%,-50%) scale(.84)}
+        50%{opacity:.34;transform:translate(-50%,-50%) scale(1.08)}
       }
 
       @keyframes loading-progress{
@@ -205,19 +204,19 @@ export function HudRuntime() {
 
       @media(max-width:640px){
         .loading-state-enter{
-          min-height:225px!important;
+          min-height:250px!important;
           margin:8px 0!important;
           padding:26px 16px 22px!important;
         }
+        .loading-state-enter::before{width:210px;height:210px}
+        .loading-state-enter::after{width:158px;height:158px}
         .loading-state-spinner{
-          width:88px!important;
-          height:88px!important;
-          min-width:88px!important;
-          min-height:88px!important;
+          width:132px!important;
+          height:132px!important;
+          min-width:132px!important;
+          min-height:132px!important;
           margin-bottom:17px!important;
         }
-        .loading-state-enter::before{width:160px;height:160px}
-        .loading-state-enter::after{width:124px;height:124px}
       }
 
       @media(prefers-reduced-motion:reduce){
