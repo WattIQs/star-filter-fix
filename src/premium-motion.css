@@ -1,150 +1,25 @@
 /* Sinal Zero — premium motion layer. Visual-only: map internals and app logic stay untouched. */
+.route-content-enter{animation:sz-page-in 500ms cubic-bezier(.22,1,.36,1) both;will-change:opacity,transform,filter;overflow-x:clip}
+.sz-reveal{animation:sz-reveal 500ms cubic-bezier(.22,1,.36,1) both}.sz-stagger>*{animation:sz-reveal 500ms cubic-bezier(.22,1,.36,1) both}.sz-stagger>*:nth-child(1){animation-delay:40ms}.sz-stagger>*:nth-child(2){animation-delay:100ms}.sz-stagger>*:nth-child(3){animation-delay:160ms}.sz-stagger>*:nth-child(4){animation-delay:220ms}.sz-stagger>*:nth-child(5){animation-delay:280ms}.sz-stagger>*:nth-child(6){animation-delay:340ms}.sz-stagger>*:nth-child(n+7){animation-delay:400ms}
+.sz-interactive{position:relative;isolation:isolate;overflow:hidden;transition:transform 360ms cubic-bezier(.22,1,.36,1),box-shadow 420ms cubic-bezier(.22,1,.36,1),border-color 280ms ease,filter 280ms ease}.sz-interactive::before{content:"";position:absolute;inset:-80% 60%;z-index:-1;pointer-events:none;background:linear-gradient(105deg,transparent 34%,rgb(255 255 255 / .10) 50%,transparent 66%);transform:translateX(-150%) rotate(8deg);transition:transform 760ms cubic-bezier(.22,1,.36,1)}.sz-interactive:hover{transform:translateY(-2px) scale(1.012);box-shadow:0 16px 36px -28px color-mix(in oklab,var(--color-primary) 70%,transparent),0 0 26px -22px color-mix(in oklab,var(--color-primary) 55%,transparent);filter:brightness(1.025)}.sz-interactive:hover::before{transform:translateX(250%) rotate(8deg)}.sz-interactive:active{transform:translateY(0) scale(.987);transition-duration:100ms}
+.route-content-enter button:not(.leaflet-control-zoom a),.route-content-enter [role="button"]:not(.leaflet-control-zoom a){transition:transform 240ms cubic-bezier(.22,1,.36,1),box-shadow 300ms cubic-bezier(.22,1,.36,1),border-color 240ms ease,background-color 240ms ease,filter 240ms ease}.route-content-enter button:not(:disabled):hover:not(.leaflet-control-zoom a),.route-content-enter [role="button"]:hover:not(.leaflet-control-zoom a){transform:translateY(-1px) scale(1.008);box-shadow:0 10px 28px -24px color-mix(in oklab,var(--color-primary) 65%,transparent);filter:brightness(1.025)}.route-content-enter button:not(:disabled):active:not(.leaflet-control-zoom a),.route-content-enter [role="button"]:active:not(.leaflet-control-zoom a){transform:translateY(0) scale(.985);transition-duration:90ms}
+.sz-focus{transition:border-color 240ms ease,box-shadow 360ms ease,background-color 240ms ease,transform 260ms cubic-bezier(.22,1,.36,1)}.sz-focus:focus-visible{outline:none;border-color:color-mix(in oklab,var(--color-primary) 70%,var(--color-border));box-shadow:0 0 0 3px color-mix(in oklab,var(--color-primary) 11%,transparent),0 12px 32px -26px color-mix(in oklab,var(--color-primary) 65%,transparent);transform:translateY(-1px)}
+[data-radix-popper-content-wrapper]>[data-state="open"]{animation:sz-popover-in 260ms cubic-bezier(.22,1,.36,1) both;transform-origin:var(--radix-popover-content-transform-origin,center top)}[data-radix-popper-content-wrapper]>[data-state="closed"]{animation:sz-popover-out 150ms ease both;transform-origin:var(--radix-popover-content-transform-origin,center top)}
+.sz-lottie{display:block;flex:none;filter:drop-shadow(0 0 8px color-mix(in oklab,var(--color-primary) 28%,transparent))}.sz-skeleton{position:relative;overflow:hidden;background:color-mix(in oklab,var(--color-muted) 78%,transparent)}.sz-skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(100deg,transparent 25%,rgb(255 255 255 / .09) 50%,transparent 75%);animation:sz-shimmer 1.25s cubic-bezier(.4,0,.2,1) infinite}.sz-status-pulse{animation:sz-status-pulse 2.2s ease-in-out infinite}
 
-/* Page transition: deliberate, contained, and never hides individual controls. */
-.route-content-enter {
-  animation: sz-page-in 500ms cubic-bezier(.22,1,.36,1) both;
-  will-change: opacity, transform, filter;
-  overflow-x: clip;
-}
+/* Site-wide polish: smoother surfaces, menus, list rows and map controls. */
+.route-content-enter input,.route-content-enter select,.route-content-enter textarea{transition:transform 220ms cubic-bezier(.22,1,.36,1),border-color 240ms ease,box-shadow 320ms ease,background-color 240ms ease}.route-content-enter input:hover,.route-content-enter select:hover,.route-content-enter textarea:hover{border-color:color-mix(in oklab,var(--color-primary) 30%,var(--color-border))}.route-content-enter input:focus,.route-content-enter select:focus,.route-content-enter textarea:focus{transform:translateY(-1px)}
+.route-content-enter [data-radix-menu-content],[data-radix-popper-content-wrapper] [role="menu"],[data-radix-popper-content-wrapper] [role="dialog"]{box-shadow:0 24px 70px -38px color-mix(in oklab,var(--color-primary) 38%,transparent),0 10px 30px -20px rgb(0 0 0 / .35);border-color:color-mix(in oklab,var(--color-primary) 18%,var(--color-border));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.route-content-enter [role="menuitem"],.route-content-enter [data-radix-collection-item]{transition:transform 180ms cubic-bezier(.22,1,.36,1),background-color 180ms ease,color 180ms ease}.route-content-enter [role="menuitem"]:hover,.route-content-enter [data-radix-collection-item]:hover{transform:translateX(2px)}
+.route-content-enter .leaflet-control{filter:drop-shadow(0 8px 18px rgb(0 0 0 / .18));transition:filter 220ms ease,transform 220ms cubic-bezier(.22,1,.36,1)}.route-content-enter .leaflet-control:hover{filter:drop-shadow(0 10px 24px color-mix(in oklab,var(--color-primary) 28%,transparent));transform:translateY(-1px)}
+.route-content-enter [data-state="active"]{transition:background-color 220ms ease,color 220ms ease,box-shadow 260ms ease,transform 220ms cubic-bezier(.22,1,.36,1)}
+.route-content-enter .list-item-enter:nth-child(odd){animation-delay:35ms}.route-content-enter .list-item-enter:nth-child(even){animation-delay:75ms}
+.route-content-enter hr{opacity:.7;transition:opacity 300ms ease}.route-content-enter hr:hover{opacity:1}
 
-/* Optional reveals: components can opt in without affecting the whole page. */
-.sz-reveal { animation: sz-reveal 500ms cubic-bezier(.22,1,.36,1) both; }
-.sz-stagger > * { animation: sz-reveal 500ms cubic-bezier(.22,1,.36,1) both; }
-.sz-stagger > *:nth-child(1) { animation-delay: 40ms; }
-.sz-stagger > *:nth-child(2) { animation-delay: 100ms; }
-.sz-stagger > *:nth-child(3) { animation-delay: 160ms; }
-.sz-stagger > *:nth-child(4) { animation-delay: 220ms; }
-.sz-stagger > *:nth-child(5) { animation-delay: 280ms; }
-.sz-stagger > *:nth-child(6) { animation-delay: 340ms; }
-.sz-stagger > *:nth-child(n+7) { animation-delay: 400ms; }
+@keyframes sz-page-in{0%{opacity:0;transform:translate3d(0,10px,0);filter:blur(2px)}55%{opacity:.78;filter:blur(.55px)}100%{opacity:1;transform:translate3d(0,0,0);filter:blur(0)}}
+@keyframes sz-reveal{0%{opacity:0;transform:translate3d(0,10px,0);filter:blur(2px)}62%{opacity:.82;filter:blur(.45px)}100%{opacity:1;transform:translate3d(0,0,0);filter:blur(0)}}
+@keyframes sz-popover-in{from{opacity:0;transform:translateY(-5px) scale(.975);filter:blur(1.5px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+@keyframes sz-popover-out{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(-3px) scale(.985)}}
+@keyframes sz-shimmer{to{transform:translateX(100%)}}@keyframes sz-status-pulse{0%,100%{opacity:.72;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
 
-/* Premium interactive surface: restrained depth + a single light sweep. */
-.sz-interactive {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  transition:
-    transform 360ms cubic-bezier(.22,1,.36,1),
-    box-shadow 420ms cubic-bezier(.22,1,.36,1),
-    border-color 280ms ease,
-    filter 280ms ease;
-}
-.sz-interactive::before {
-  content: "";
-  position: absolute;
-  inset: -80% 60%;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(105deg, transparent 34%, rgb(255 255 255 / .10) 50%, transparent 66%);
-  transform: translateX(-150%) rotate(8deg);
-  transition: transform 760ms cubic-bezier(.22,1,.36,1);
-}
-.sz-interactive:hover {
-  transform: translateY(-2px) scale(1.012);
-  box-shadow:
-    0 16px 36px -28px color-mix(in oklab, var(--color-primary) 70%, transparent),
-    0 0 26px -22px color-mix(in oklab, var(--color-primary) 55%, transparent);
-  filter: brightness(1.025);
-}
-.sz-interactive:hover::before { transform: translateX(250%) rotate(8deg); }
-.sz-interactive:active { transform: translateY(0) scale(.987); transition-duration: 100ms; }
-
-/* Global UI microinteraction: visual feedback only — never opacity. */
-.route-content-enter button:not(.leaflet-control-zoom a),
-.route-content-enter [role="button"]:not(.leaflet-control-zoom a) {
-  transition:
-    transform 240ms cubic-bezier(.22,1,.36,1),
-    box-shadow 300ms cubic-bezier(.22,1,.36,1),
-    border-color 240ms ease,
-    background-color 240ms ease,
-    filter 240ms ease;
-}
-.route-content-enter button:not(:disabled):hover:not(.leaflet-control-zoom a),
-.route-content-enter [role="button"]:hover:not(.leaflet-control-zoom a) {
-  transform: translateY(-1px) scale(1.008);
-  box-shadow: 0 10px 28px -24px color-mix(in oklab, var(--color-primary) 65%, transparent);
-  filter: brightness(1.025);
-}
-.route-content-enter button:not(:disabled):active:not(.leaflet-control-zoom a),
-.route-content-enter [role="button"]:active:not(.leaflet-control-zoom a) {
-  transform: translateY(0) scale(.985);
-  transition-duration: 90ms;
-}
-
-/* Inputs: focused depth instead of a harsh jump. */
-.sz-focus {
-  transition:
-    border-color 240ms ease,
-    box-shadow 360ms ease,
-    background-color 240ms ease,
-    transform 260ms cubic-bezier(.22,1,.36,1);
-}
-.sz-focus:focus-visible {
-  outline: none;
-  border-color: color-mix(in oklab, var(--color-primary) 70%, var(--color-border));
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--color-primary) 11%, transparent),
-    0 12px 32px -26px color-mix(in oklab, var(--color-primary) 65%, transparent);
-  transform: translateY(-1px);
-}
-
-/* Radix menus/popovers: spatial transition, not a sudden appearance. */
-[data-radix-popper-content-wrapper] > [data-state="open"] {
-  animation: sz-popover-in 260ms cubic-bezier(.22,1,.36,1) both;
-  transform-origin: var(--radix-popover-content-transform-origin, center top);
-}
-[data-radix-popper-content-wrapper] > [data-state="closed"] {
-  animation: sz-popover-out 150ms ease both;
-  transform-origin: var(--radix-popover-content-transform-origin, center top);
-}
-
-/* Lottie host: crisp, small, and visually tied to the primary accent. */
-.sz-lottie {
-  display: block;
-  flex: none;
-  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--color-primary) 28%, transparent));
-}
-
-/* Lightweight skeleton shimmer for future/opt-in loading surfaces. */
-.sz-skeleton {
-  position: relative;
-  overflow: hidden;
-  background: color-mix(in oklab, var(--color-muted) 78%, transparent);
-}
-.sz-skeleton::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / .09) 50%, transparent 75%);
-  animation: sz-shimmer 1.25s cubic-bezier(.4,0,.2,1) infinite;
-}
-
-/* Soft ambient pulse for status indicators — deliberately tiny. */
-.sz-status-pulse { animation: sz-status-pulse 2.2s ease-in-out infinite; }
-
-@keyframes sz-page-in {
-  0% { opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(2px); }
-  55% { opacity: .78; filter: blur(.55px); }
-  100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); }
-}
-@keyframes sz-reveal {
-  0% { opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(2px); }
-  62% { opacity: .82; filter: blur(.45px); }
-  100% { opacity: 1; transform: translate3d(0,0,0); filter: blur(0); }
-}
-@keyframes sz-popover-in {
-  from { opacity: 0; transform: translateY(-5px) scale(.975); filter: blur(1.5px); }
-  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-}
-@keyframes sz-popover-out {
-  from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(-3px) scale(.985); }
-}
-@keyframes sz-shimmer { to { transform: translateX(100%); } }
-@keyframes sz-status-pulse { 0%,100% { opacity: .72; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .route-content-enter, .sz-reveal, .sz-stagger > *, .sz-skeleton::after, .sz-status-pulse { animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important; }
-  .sz-interactive, .route-content-enter button, .route-content-enter [role="button"], .sz-focus { transition: box-shadow 180ms ease, filter 180ms ease, border-color 180ms ease !important; transform: none !important; }
-}
+@media(prefers-reduced-motion:reduce){.route-content-enter,.sz-reveal,.sz-stagger>*,.sz-skeleton::after,.sz-status-pulse{animation:none!important;opacity:1!important;transform:none!important;filter:none!important}.sz-interactive,.route-content-enter button,.route-content-enter [role="button"],.sz-focus{transition:box-shadow 180ms ease,filter 180ms ease,border-color 180ms ease!important;transform:none!important}}
