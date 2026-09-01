@@ -169,7 +169,30 @@ function AuthPage() {
             <div className="mb-7 text-center auth-reveal"><div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-lg shadow-primary/10 animate-glow-pulse">{mode === "login" ? <LockKeyhole className="h-7 w-7" /> : <Sparkles className="h-7 w-7" />}</div><h1 className="text-3xl font-bold tracking-tight">{mode === "login" ? "Bem-vindo de volta" : "Crie sua conta"}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{mode === "login" ? "Entre para acessar seus leads e dados." : "Comece a organizar seus leads no Star Filter."}</p></div>
             <form onSubmit={submitCredentials} className="space-y-4">
               <label className="block text-sm font-medium auth-reveal">E-mail<div className="relative mt-1.5"><Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" className="h-12 w-full rounded-xl border border-border bg-background/70 pl-10 pr-3 outline-none transition-all duration-300 focus:-translate-y-0.5 focus:border-primary focus:ring-4 focus:ring-primary/10" /></div></label>
-              <label className="block text-sm font-medium auth-reveal">Senha<div className="relative mt-1.5"><LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha" className="h-12 w-full rounded-xl border border-border bg-background/70 pl-10 pr-11 outline-none transition-all duration-300 focus:-translate-y-0.5 focus:border-primary focus:ring-4 focus:ring-primary/10" /><button type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword((value) => !value)} className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted active:scale-90">{showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}</button></div></label>
+              <label className="block text-sm font-medium auth-reveal">
+                Senha
+                <div className="group relative mt-1.5">
+                  <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    minLength={6}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Sua senha"
+                    className="peer h-12 w-full rounded-xl border border-border bg-background/70 pl-10 pr-11 outline-none transition-all duration-300 focus:-translate-y-0.5 focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-all duration-300 peer-focus:-translate-y-0.5 hover:bg-muted active:scale-95"
+                  >
+                    {showPassword ? <Eye className="h-4 w-4 shrink-0" /> : <EyeOff className="h-4 w-4 shrink-0" />}
+                  </button>
+                </div>
+              </label>
               {error && <p role="alert" className="auth-shake rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
               <button type="submit" disabled={loading} className="group relative flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-4 font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"><span className="absolute inset-0 -translate-x-full bg-white/15 transition-transform duration-700 group-hover:translate-x-full" />{loading ? <span className="app-spinner relative h-4 w-4 border-primary-foreground/25 border-t-primary-foreground border-r-primary-foreground/70" /> : <span className="relative">{mode === "login" ? "Entrar" : "Continuar"}</span>}</button>
             </form>
