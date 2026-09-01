@@ -34,3 +34,15 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Bug Ledger
+
+### 2026-09-01 — Botão mostrar/ocultar senha desalinhado em `/auth`
+- **Sintoma:** O ícone de olho no campo de senha aparecia deslocado para cima e parcialmente cortado, especialmente quando o input recebia foco.
+- **Causa:** O botão absoluto era posicionado em relação ao wrapper do input, mas não acompanhava a animação `focus:-translate-y-0.5` do campo; o ícone também não tinha garantia de centralização nem área clicável mínima confortável.
+- **Solução (em `src/routes/auth.tsx`):**
+  - Adicionada classe `peer` no input e `peer-focus:-translate-y-0.5` no botão, para que o botão suba junto com o campo no focus e permaneça centralizado.
+  - Aumentada a área clicável para `h-9 w-9` (36 × 36 px).
+  - Garantida centralização vertical com `top-1/2 -translate-y-1/2`, flexbox e `shrink-0` no ícone.
+  - Adicionado `z-10` no botão e no ícone de cadeado para evitar sobreposição.
+  - Reduzido `active:scale-95` para evitar clipping visual durante o clique.
