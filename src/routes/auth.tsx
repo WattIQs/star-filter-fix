@@ -181,13 +181,13 @@ function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Sua senha"
-                    className="peer h-12 w-full rounded-xl border border-border bg-background/70 pl-10 pr-11 outline-none transition-all duration-300 focus:-translate-y-0.5 focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    className="h-12 w-full rounded-xl border border-border bg-background/70 pl-10 pr-11 outline-none transition-all duration-300 focus:border-primary focus:ring-4 focus:ring-primary/10"
                   />
                   <button
                     type="button"
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     onClick={() => setShowPassword((value) => !value)}
-                    className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-all duration-300 peer-focus:-translate-y-0.5 hover:bg-muted active:scale-95"
+                    className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-all duration-300 hover:bg-muted active:scale-95"
                   >
                     {showPassword ? <Eye className="h-4 w-4 shrink-0" /> : <EyeOff className="h-4 w-4 shrink-0" />}
                   </button>
