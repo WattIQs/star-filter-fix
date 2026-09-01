@@ -34,3 +34,16 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Bug Ledger
+
+### 2026-09-01 — Botão mostrar/ocultar senha desalinhado em `/auth`
+- **Sintoma:** O ícone de olho no campo de senha aparecia deslocado para baixo/cima e parcialmente fora do campo, especialmente quando o input recebia foco.
+- **Causa raiz:** A regra global `form button { position: relative; ... }` em `src/styles.css` sobrescrevia o `position: absolute` do botão de olho, mantendo-o no fluxo normal e quebrando o posicionamento. Além disso, a animação `focus:-translate-y-0.5` do input deslocava o campo sem mover os ícones absolutos, criando desalinhamento visual.
+- **Solução:**
+  - Em `src/styles.css`: ajustada a regra global para `form button:not(.absolute)`, preservando o posicionamento absoluto do botão de olho.
+  - Em `src/routes/auth.tsx`:
+    - Removeu `focus:-translate-y-0.5` do input de senha para garantir que o campo não se desloque em relação ao botão/cadeado.
+    - Manteve o botão absoluto com `top-1/2 -translate-y-1/2`, área clicável `h-9 w-9` (36 × 36 px), flexbox centralizado e `shrink-0` no ícone.
+    - Adicionou `z-10` no botão e no cadeado para evitar sobreposição.
+  - Validado via teste visual automatizado: centro do botão alinhado ao centro do input com offset 0 px.

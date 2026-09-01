@@ -48,9 +48,9 @@ html.light {
   .premium-card:hover::after { transform: translateX(115%); }
 }
 
-header button, aside button, form button { position: relative; transition: transform .28s cubic-bezier(.22,1,.36,1), background-color .28s ease, border-color .28s ease, color .22s ease, box-shadow .35s ease; }
-header button:hover:not(:disabled), aside button:hover:not(:disabled), form button:hover:not(:disabled) { transform: translateY(-1px) scale(1.012); box-shadow: 0 10px 28px -20px color-mix(in oklab, var(--color-primary) 58%, transparent); }
-header button:active:not(:disabled), aside button:active:not(:disabled), form button:active:not(:disabled) { transform: scale(.985); }
+header button, aside button, form button:not(.absolute) { position: relative; transition: transform .28s cubic-bezier(.22,1,.36,1), background-color .28s ease, border-color .28s ease, color .22s ease, box-shadow .35s ease; }
+header button:hover:not(:disabled), aside button:hover:not(:disabled), form button:hover:not(:disabled):not(.absolute) { transform: translateY(-1px) scale(1.012); box-shadow: 0 10px 28px -20px color-mix(in oklab, var(--color-primary) 58%, transparent); }
+header button:active:not(:disabled), aside button:active:not(:disabled), form button:active:not(:disabled):not(.absolute) { transform: scale(.985); }
 input, select, textarea { transition: border-color .25s ease, background-color .25s ease, box-shadow .3s ease; }
 input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 13%, transparent), 0 12px 30px -24px color-mix(in oklab, var(--color-primary) 55%, transparent); }
 
